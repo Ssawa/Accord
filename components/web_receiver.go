@@ -1,10 +1,11 @@
-package accord
+package components
 
 import (
 	"io/ioutil"
 	"net/http"
 	"sync"
 
+	"github.com/Ssawa/accord/accord"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,14 +32,14 @@ type WebReceiver struct {
 	mux        *http.ServeMux
 	stopSignal *sync.Cond
 	stopping   bool
-	accord     *Accord
+	accord     *accord.Accord
 	log        *logrus.Entry
 }
 
 // Start initializes our web routes and starts the HTTP server (it does *not*, however, assure
 // that the port is completely bound and listening at the time it returns, as this occurs in a
 // background thread)
-func (receiver *WebReceiver) Start(accord *Accord) (err error) {
+func (receiver *WebReceiver) Start(accord *accord.Accord) (err error) {
 	// Save a reference to our accord instance so we can use it within our handlers
 	receiver.accord = accord
 	receiver.log = accord.Logger.WithField("component", "WebReceiver")
@@ -99,7 +100,7 @@ func (receiver *WebReceiver) newCommand(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	msg, err := NewMessage(body)
+	msg, err := accord.NewMessage(body)
 	if err != nil {
 		receiver.log.WithError(err).Warn("Error generating a new message")
 		http.Error(w, err.Error(), 500)

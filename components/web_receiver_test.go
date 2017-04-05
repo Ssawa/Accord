@@ -1,4 +1,4 @@
-package accord
+package components
 
 import (
 	"bytes"
@@ -6,8 +6,21 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Ssawa/accord/accord"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
+
+func dummyAccord() *accord.Accord {
+	blankLogger := &logrus.Logger{
+		Out:       ioutil.Discard,
+		Formatter: new(logrus.TextFormatter),
+		Hooks:     make(logrus.LevelHooks),
+		Level:     logrus.InfoLevel,
+	}
+
+	return accord.NewAccord(nil, nil, "", blankLogger.WithFields(nil))
+}
 
 func TestWebReceiverStop(t *testing.T) {
 	receiver := WebReceiver{}
