@@ -7,9 +7,14 @@ import (
 
 	"github.com/beeker1121/goque"
 	"github.com/sirupsen/logrus"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
-const syncFilename = "sync.queue"
+const (
+	syncFilename    = "sync.queue"
+	historyFilename = "history.stack"
+	stateFilename   = "state.db"
+)
 
 // Manager is where the majority of application specific logic should be stored and is generally
 // where you can actually *use* Accord. The Accord process will call these Manager functions
@@ -49,6 +54,17 @@ type Accord struct {
 	// syncQueue is used to keep track of all of the messages that need to be synchronized
 	// remotely
 	syncQueue *goque.Queue
+
+	// historyStack is used to keep track of the messages that were performed locally by this instance that
+	// can be used for resolving merge conflicts
+	historyStack *goque.Stack
+
+	// state is used to keep track of the internal state of our process so help detect divergence
+	// with other Accord processes. It's probably a bit of overkill to use a LevelDB database to keep
+	// track of our state but it's the easiest way of creating a persisted, thread safe piece of data.
+	// We're already using LevelDB for goque (which is why we're not going with Bolt) and it's very
+	// possible we'll want to keep track of more advanced data for our state, which this will support
+	state *leveldb.DB
 
 	// shutdown is a channel that can be used to communicate to the Accord process from a goroutine that
 	// it should shutdown. This will generally be used by Components when they encounter an unrecoverable
@@ -100,8 +116,22 @@ func (accord *Accord) Start(signals ...os.Signal) (err error) {
 	// Setup our internal variables and components
 	accord.syncQueue, err = goque.OpenQueue(path.Join(accord.dataDir, syncFilename))
 	if err != nil {
+		accord.Logger.WithError(err).Error("Unable to load synchronization queue")
 		return err
 	}
+
+	accord.historyStack, err = goque.OpenStack(path.Join(accord.dataDir, historyFilename))
+	if err != nil {
+		accord.Logger.WithError(err).Error("Unable to load history stack")
+		return err
+	}
+
+	accord.state, err = leveldb.OpenFile(path.Join(accord.dataDir, stateFilename), nil)
+	if err != nil {
+		accord.Logger.WithError(err).Error("Unable to load state")
+		return err
+	}
+
 	accord.shutdown = make(chan error)
 
 	accord.Logger.Info("Starting components")

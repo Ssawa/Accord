@@ -1,2 +1,5 @@
 main.ref
 vendor
+*sync.queue
+*history.stack
+*state.db

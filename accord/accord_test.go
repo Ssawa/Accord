@@ -12,6 +12,8 @@ import (
 )
 
 func dummyAccord() *Accord {
+	accordCleanup()
+
 	blankLogger := &logrus.Logger{
 		Out:       ioutil.Discard,
 		Formatter: new(logrus.TextFormatter),
@@ -24,6 +26,8 @@ func dummyAccord() *Accord {
 
 func accordCleanup() {
 	os.RemoveAll(syncFilename)
+	os.RemoveAll(historyFilename)
+	os.RemoveAll(stateFilename)
 }
 
 type testingWriter struct {
@@ -72,7 +76,7 @@ func (noop *noopComponent) Stop(int) {
 func (noop *noopComponent) WaitForStop() {
 }
 
-func TestAccordComponentInit(t *testing.T) {
+func TestAccordComponentStart(t *testing.T) {
 	defer accordCleanup()
 
 	comp1 := &noopComponent{}
@@ -97,7 +101,7 @@ func (noop *noopComponentError) Start(accord *Accord) (err error) {
 	return errors.New("Manufactured Error")
 }
 
-func TestAccordComponentInitError(t *testing.T) {
+func TestAccordComponentStartError(t *testing.T) {
 	defer accordCleanup()
 
 	comp1 := &noopComponent{}

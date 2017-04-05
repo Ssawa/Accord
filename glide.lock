@@ -1,10 +1,12 @@
-hash: 64c8256cbd8ecb06f96d38b6641ddac3250ef69851eaedac8dcba167cafc5b41
-updated: 2017-04-05T15:29:24.780663-04:00
+hash: a062b784ab84b58bb49d183d92f88bb906198bed00908837e2945a6cc9f3aea9
+updated: 2017-04-05T17:55:48.698183283-04:00
 imports:
 - name: github.com/beeker1121/goque
   version: e1e63ca63c14b41209e160f54c8e7669564eacc4
 - name: github.com/golang/snappy
   version: 553a641470496b2327abcac10b36396bd98e45c9
+- name: github.com/pebbe/zmq4
+  version: 7157c0d6df4e6bfcae60a6f20cffaee88ac1ab30
 - name: github.com/sirupsen/logrus
   version: ba1b36c82c5e05c4f912a88eab0dcd91a171688f
 - name: github.com/syndtr/goleveldb
@@ -31,8 +33,6 @@ testImports:
   version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
   subpackages:
   - spew
-- name: github.com/pebbe/zmq4
-  version: 7157c0d6df4e6bfcae60a6f20cffaee88ac1ab30
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:

@@ -36,6 +36,7 @@ type ComponentRunner struct {
 
 	stopping bool
 
+	// Allow users of ComponentRunner to specify custom fields to be logged
 	log *logrus.Entry
 }
 
