@@ -75,7 +75,9 @@ type Accord struct {
 	// signalChannel is used to detect when a signal comes in from the operating system
 	signalChannel chan os.Signal
 
-	handleMutex *sync.Mutex
+	// We need to make sure that we don't process more than one message at a time or else our state might
+	// get messed up
+	processMutex *sync.Mutex
 }
 
 // NewAccord creates a new instance of Accord for you to use. This function accepts an implementation
@@ -117,6 +119,8 @@ func (accord *Accord) Start(signals ...os.Signal) (err error) {
 	}
 
 	// Setup our internal variables and components
+	accord.processMutex = &sync.Mutex{}
+
 	accord.syncQueue, err = goque.OpenQueue(path.Join(accord.dataDir, SyncFilename))
 	if err != nil {
 		accord.Logger.WithError(err).Error("Unable to load synchronization queue")
@@ -210,6 +214,9 @@ func (accord *Accord) StartAndListen(signals ...os.Signal) error {
 // HandleNewMessage processes a newly created message and adds it to our queue to be
 // synchronized
 func (accord *Accord) HandleNewMessage(msg *Message) error {
+	accord.processMutex.Lock()
+	defer accord.processMutex.Unlock()
+
 	accord.Logger.Debug("Processing a new message")
 	err := accord.manager.Process(msg, false)
 	if err != nil {

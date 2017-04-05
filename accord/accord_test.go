@@ -2,7 +2,6 @@ package accord
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"testing"
@@ -10,25 +9,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
-
-func dummyAccord() *Accord {
-	accordCleanup()
-
-	blankLogger := &logrus.Logger{
-		Out:       ioutil.Discard,
-		Formatter: new(logrus.TextFormatter),
-		Hooks:     make(logrus.LevelHooks),
-		Level:     logrus.InfoLevel,
-	}
-
-	return NewAccord(nil, nil, "", blankLogger.WithFields(nil))
-}
-
-func accordCleanup() {
-	os.RemoveAll(SyncFilename)
-	os.RemoveAll(HistoryFilename)
-	os.RemoveAll(StateFilename)
-}
 
 type testingWriter struct {
 	previous *[]string
@@ -44,7 +24,7 @@ func (writer testingWriter) Write(p []byte) (n int, err error) {
 }
 
 func TestAccordLogging(t *testing.T) {
-	defer accordCleanup()
+	defer AccordCleanup()
 
 	writer := createTestingWriter()
 
@@ -77,13 +57,13 @@ func (noop *noopComponent) WaitForStop() {
 }
 
 func TestAccordComponentStart(t *testing.T) {
-	defer accordCleanup()
+	defer AccordCleanup()
 
 	comp1 := &noopComponent{}
 	comp2 := &noopComponent{}
 	comp3 := &noopComponent{}
 
-	accord := dummyAccord()
+	accord := DummyAccord()
 	accord.components = []Component{comp1, comp2, comp3}
 	err := accord.Start()
 	assert.Nil(t, err)
@@ -102,13 +82,13 @@ func (noop *noopComponentError) Start(accord *Accord) (err error) {
 }
 
 func TestAccordComponentStartError(t *testing.T) {
-	defer accordCleanup()
+	defer AccordCleanup()
 
 	comp1 := &noopComponent{}
 	comp2 := &noopComponent{}
 	comp3 := &noopComponentError{}
 
-	accord := dummyAccord()
+	accord := DummyAccord()
 	accord.components = []Component{comp1, comp2, comp3}
 	err := accord.Start()
 	assert.NotNil(t, err)
@@ -116,13 +96,13 @@ func TestAccordComponentStartError(t *testing.T) {
 }
 
 func TestAccordComponentStop(t *testing.T) {
-	defer accordCleanup()
+	defer AccordCleanup()
 
 	comp1 := &noopComponent{}
 	comp2 := &noopComponent{}
 	comp3 := &noopComponent{}
 
-	accord := dummyAccord()
+	accord := DummyAccord()
 	accord.components = []Component{comp1, comp2, comp3}
 	err := accord.Start()
 	assert.Nil(t, err)
@@ -136,14 +116,14 @@ func TestAccordComponentStop(t *testing.T) {
 }
 
 func TestAccordStartOSShutdown(t *testing.T) {
-	defer accordCleanup()
+	defer AccordCleanup()
 	defer signal.Reset()
 
 	comp1 := &noopComponent{}
 	comp2 := &noopComponent{}
 	comp3 := &noopComponent{}
 
-	accord := dummyAccord()
+	accord := DummyAccord()
 	accord.components = []Component{comp1, comp2, comp3}
 
 	accord.Start(os.Interrupt)
@@ -174,13 +154,13 @@ func TestAccordStartOSShutdown(t *testing.T) {
 }
 
 func TestAccordStartErrorShutdown(t *testing.T) {
-	defer accordCleanup()
+	defer AccordCleanup()
 
 	comp1 := &noopComponent{}
 	comp2 := &noopComponent{}
 	comp3 := &noopComponent{}
 
-	accord := dummyAccord()
+	accord := DummyAccord()
 	accord.components = []Component{comp1, comp2, comp3}
 
 	accord.Start()
@@ -203,4 +183,35 @@ func TestAccordStartErrorShutdown(t *testing.T) {
 	assert.True(t, comp2.stopped)
 	assert.True(t, comp3.stopped)
 
+}
+
+func TestAccordMultipleNewOperations(t *testing.T) {
+	defer AccordCleanup()
+	accord := DummyAccord()
+	accord.Start()
+
+	msg1 := &Message{ID: 1}
+	msg2 := &Message{ID: 2}
+	msg3 := &Message{ID: 3}
+	msg4 := &Message{ID: 4}
+	msg5 := &Message{ID: 5}
+
+	done := make(chan int, 5)
+
+	execute := func(msg *Message) {
+		accord.HandleNewMessage(msg)
+		done <- 0
+	}
+
+	go execute(msg1)
+	go execute(msg2)
+	go execute(msg3)
+	go execute(msg4)
+	go execute(msg5)
+
+	for i := 0; i < 5; i++ {
+		<-done
+	}
+
+	assert.Equal(t, uint64(15), accord.state.cached)
 }

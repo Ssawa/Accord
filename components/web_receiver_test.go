@@ -4,60 +4,15 @@ import (
 	"bytes"
 	"io/ioutil"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/Ssawa/accord/accord"
-	"github.com/beeker1121/goque"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
-func accordCleanup() {
-	os.RemoveAll(accord.SyncFilename)
-	os.RemoveAll(accord.HistoryFilename)
-	os.RemoveAll(accord.StateFilename)
-}
-
-type dummyManager struct {
-	local  []accord.Message
-	remote []accord.Message
-}
-
-func newDummerManager() dummyManager {
-	return dummyManager{
-		local:  make([]accord.Message, 1),
-		remote: make([]accord.Message, 1),
-	}
-}
-func (manager dummyManager) Process(msg *accord.Message, fromRemote bool) error {
-	if fromRemote {
-		manager.remote = append(manager.remote, *msg)
-	} else {
-		manager.local = append(manager.local, *msg)
-	}
-
-	return nil
-}
-
-func (manager dummyManager) ShouldProcess(msg accord.Message, history *goque.Stack) bool {
-	return true
-}
-
-func dummyAccord() *accord.Accord {
-	blankLogger := &logrus.Logger{
-		Out:       ioutil.Discard,
-		Formatter: new(logrus.TextFormatter),
-		Hooks:     make(logrus.LevelHooks),
-		Level:     logrus.InfoLevel,
-	}
-
-	return accord.NewAccord(newDummerManager(), nil, "", blankLogger.WithFields(nil))
-}
-
 func TestWebReceiverStop(t *testing.T) {
 	receiver := WebReceiver{}
-	receiver.Start(dummyAccord())
+	receiver.Start(accord.DummyAccord())
 	receiver.Stop(0)
 
 	// What we're testing here is simply that our stopping logic actually works and that we don't hang.
@@ -69,7 +24,7 @@ func TestWebReceiverStop(t *testing.T) {
 
 func TestWebReceiverWaitStopTwice(t *testing.T) {
 	receiver := WebReceiver{}
-	receiver.Start(dummyAccord())
+	receiver.Start(accord.DummyAccord())
 	receiver.Stop(0)
 
 	receiver.WaitForStop()
@@ -82,7 +37,7 @@ func TestWebReceiverPing(t *testing.T) {
 	resp := httptest.NewRecorder()
 
 	receiver := WebReceiver{}
-	receiver.Start(dummyAccord())
+	receiver.Start(accord.DummyAccord())
 
 	receiver.mux.ServeHTTP(resp, req)
 
@@ -95,14 +50,14 @@ func TestWebReceiverPing(t *testing.T) {
 }
 
 func TestWebReceiverNewCommand(t *testing.T) {
-	accordCleanup()
-	defer accordCleanup()
+	accord.AccordCleanup()
+	defer accord.AccordCleanup()
 
 	req := httptest.NewRequest("POST", "/", bytes.NewBufferString("hello, world"))
 	resp := httptest.NewRecorder()
 
 	receiver := WebReceiver{}
-	accord := dummyAccord()
+	accord := accord.DummyAccord()
 	accord.Start()
 	receiver.Start(accord)
 

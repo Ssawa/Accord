@@ -16,7 +16,7 @@ func TestComponentRunner(t *testing.T) {
 	cleanup := func(*Accord) { cleanedUp = true }
 
 	runner := ComponentRunner{}
-	runner.Init(dummyAccord(), tick, cleanup, nil)
+	runner.Init(DummyAccord(), tick, cleanup, nil)
 	time.Sleep(time.Millisecond)
 	runner.Stop(0)
 	runner.WaitForStop()
@@ -26,7 +26,7 @@ func TestComponentRunner(t *testing.T) {
 
 func TestComponentRunnerWaitStopTwice(t *testing.T) {
 	runner := ComponentRunner{}
-	runner.Init(dummyAccord(), func(*Accord) {}, nil, nil)
+	runner.Init(DummyAccord(), func(*Accord) {}, nil, nil)
 	runner.Stop(0)
 	runner.WaitForStop()
 	runner.WaitForStop()
@@ -49,7 +49,7 @@ func (comp *testComponentStruct) tick(*Accord) {
 
 func TestComponentRunnerStopFromInside(t *testing.T) {
 	comp := testComponentStruct{}
-	comp.Start(dummyAccord())
+	comp.Start(DummyAccord())
 
 	// This returning at all indicates that our test passes
 	comp.WaitForStop()
@@ -104,7 +104,7 @@ func (comp *testComponentZMQ) cleanup(*Accord) {
 // with this system (as we should be using it a lot)
 func TestZMQRunnerStop(t *testing.T) {
 	comp := testComponentZMQ{t: t}
-	comp.Start(dummyAccord())
+	comp.Start(DummyAccord())
 	time.Sleep(time.Millisecond)
 	comp.Stop(0)
 	comp.WaitForStop()
