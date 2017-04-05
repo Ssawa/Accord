@@ -1,0 +1,12 @@
+package: github.com/Ssawa/accord
+import:
+- package: github.com/beeker1121/goque
+  version: ^2.0.1
+- package: github.com/sirupsen/logrus
+  version: ^0.11.5
+testImport:
+- package: github.com/pebbe/zmq4
+- package: github.com/stretchr/testify
+  version: ^1.1.4
+  subpackages:
+  - assert
