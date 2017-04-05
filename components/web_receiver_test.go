@@ -4,12 +4,45 @@ import (
 	"bytes"
 	"io/ioutil"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/Ssawa/accord/accord"
+	"github.com/beeker1121/goque"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
+
+func accordCleanup() {
+	os.RemoveAll(accord.SyncFilename)
+	os.RemoveAll(accord.HistoryFilename)
+	os.RemoveAll(accord.StateFilename)
+}
+
+type dummyManager struct {
+	local  []accord.Message
+	remote []accord.Message
+}
+
+func newDummerManager() dummyManager {
+	return dummyManager{
+		local:  make([]accord.Message, 1),
+		remote: make([]accord.Message, 1),
+	}
+}
+func (manager dummyManager) Process(msg *accord.Message, fromRemote bool) error {
+	if fromRemote {
+		manager.remote = append(manager.remote, *msg)
+	} else {
+		manager.local = append(manager.local, *msg)
+	}
+
+	return nil
+}
+
+func (manager dummyManager) ShouldProcess(msg accord.Message, history *goque.Stack) bool {
+	return true
+}
 
 func dummyAccord() *accord.Accord {
 	blankLogger := &logrus.Logger{
@@ -19,7 +52,7 @@ func dummyAccord() *accord.Accord {
 		Level:     logrus.InfoLevel,
 	}
 
-	return accord.NewAccord(nil, nil, "", blankLogger.WithFields(nil))
+	return accord.NewAccord(newDummerManager(), nil, "", blankLogger.WithFields(nil))
 }
 
 func TestWebReceiverStop(t *testing.T) {
@@ -62,11 +95,16 @@ func TestWebReceiverPing(t *testing.T) {
 }
 
 func TestWebReceiverNewCommand(t *testing.T) {
+	accordCleanup()
+	defer accordCleanup()
+
 	req := httptest.NewRequest("POST", "/", bytes.NewBufferString("hello, world"))
 	resp := httptest.NewRecorder()
 
 	receiver := WebReceiver{}
-	receiver.Start(dummyAccord())
+	accord := dummyAccord()
+	accord.Start()
+	receiver.Start(accord)
 
 	receiver.mux.ServeHTTP(resp, req)
 	assert.Equal(t, resp.Code, 201)
@@ -77,5 +115,5 @@ func TestWebReceiverNewCommand(t *testing.T) {
 
 	receiver.Stop(0)
 	receiver.WaitForStop()
-
+	accord.Stop()
 }

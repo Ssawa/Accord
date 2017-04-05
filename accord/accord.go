@@ -4,16 +4,16 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"sync"
 
 	"github.com/beeker1121/goque"
 	"github.com/sirupsen/logrus"
-	"github.com/syndtr/goleveldb/leveldb"
 )
 
 const (
-	syncFilename    = "sync.queue"
-	historyFilename = "history.stack"
-	stateFilename   = "state.db"
+	SyncFilename    = "sync.queue"
+	HistoryFilename = "history.stack"
+	StateFilename   = "state.db"
 )
 
 // Manager is where the majority of application specific logic should be stored and is generally
@@ -22,12 +22,13 @@ const (
 type Manager interface {
 	// Process is called when a Message should be handled and processed. This can be called both from
 	// locally created new messages or sent from a remote Accord server; this is indicated by the fromRemote
-	// boolean
-	Process(msg Message, fromRemote bool) error
+	// boolean. You should try to resolve all errors internally, returning an error will tell Accord to blow
+	// up
+	Process(msg *Message, fromRemote bool) error
 
 	// ShouldProcess gives the Manager a chance to filter which Messages get passed to Process so as to resolve
 	// synchronization conflicts
-	ShouldProcess(msg Message) bool
+	ShouldProcess(msg Message, history *goque.Stack) bool
 }
 
 // Accord is the main struct responsible for maintaining state and coordinating
@@ -64,7 +65,7 @@ type Accord struct {
 	// track of our state but it's the easiest way of creating a persisted, thread safe piece of data.
 	// We're already using LevelDB for goque (which is why we're not going with Bolt) and it's very
 	// possible we'll want to keep track of more advanced data for our state, which this will support
-	state *leveldb.DB
+	state *State
 
 	// shutdown is a channel that can be used to communicate to the Accord process from a goroutine that
 	// it should shutdown. This will generally be used by Components when they encounter an unrecoverable
@@ -73,6 +74,8 @@ type Accord struct {
 
 	// signalChannel is used to detect when a signal comes in from the operating system
 	signalChannel chan os.Signal
+
+	handleMutex *sync.Mutex
 }
 
 // NewAccord creates a new instance of Accord for you to use. This function accepts an implementation
@@ -114,19 +117,19 @@ func (accord *Accord) Start(signals ...os.Signal) (err error) {
 	}
 
 	// Setup our internal variables and components
-	accord.syncQueue, err = goque.OpenQueue(path.Join(accord.dataDir, syncFilename))
+	accord.syncQueue, err = goque.OpenQueue(path.Join(accord.dataDir, SyncFilename))
 	if err != nil {
 		accord.Logger.WithError(err).Error("Unable to load synchronization queue")
 		return err
 	}
 
-	accord.historyStack, err = goque.OpenStack(path.Join(accord.dataDir, historyFilename))
+	accord.historyStack, err = goque.OpenStack(path.Join(accord.dataDir, HistoryFilename))
 	if err != nil {
 		accord.Logger.WithError(err).Error("Unable to load history stack")
 		return err
 	}
 
-	accord.state, err = leveldb.OpenFile(path.Join(accord.dataDir, stateFilename), nil)
+	accord.state, err = OpenState(path.Join(accord.dataDir, StateFilename))
 	if err != nil {
 		accord.Logger.WithError(err).Error("Unable to load state")
 		return err
@@ -146,9 +149,10 @@ func (accord *Accord) Start(signals ...os.Signal) (err error) {
 	return
 }
 
-// stop safely closes down the components registered with Accord and waits for them to
-// finish
-func (accord *Accord) stop() {
+// Stop safely closes down the components registered with Accord and waits for them to
+// finish. This should *not* be used by components for closing Accord. Instead please use
+// Shutdown
+func (accord *Accord) Stop() {
 	accord.Logger.Info("Stopping components")
 	for _, comp := range accord.components {
 		comp.Stop(0)
@@ -158,6 +162,11 @@ func (accord *Accord) stop() {
 	for _, comp := range accord.components {
 		comp.WaitForStop()
 	}
+
+	accord.Logger.Info("Closing disk connections")
+	accord.syncQueue.Close()
+	accord.historyStack.Close()
+	accord.state.Close()
 }
 
 // Listen simply listens on our interrupt channels and hangs until one comes in. If one does,
@@ -166,12 +175,12 @@ func (accord *Accord) Listen() error {
 	select {
 	case <-accord.signalChannel:
 		accord.Logger.Info("Received OS signal")
-		accord.stop()
+		accord.Stop()
 		return nil
 
 	case err := <-accord.shutdown:
 		accord.Logger.WithError(err).Warn("Shutting down due to error")
-		accord.stop()
+		accord.Stop()
 		return err
 	}
 }
@@ -198,6 +207,23 @@ func (accord *Accord) StartAndListen(signals ...os.Signal) error {
 	return nil
 }
 
+// HandleNewMessage processes a newly created message and adds it to our queue to be
+// synchronized
 func (accord *Accord) HandleNewMessage(msg *Message) error {
+	accord.Logger.Debug("Processing a new message")
+	err := accord.manager.Process(msg, false)
+	if err != nil {
+		accord.Logger.WithError(err).Warn("The manager had an error while processing a message. The safest thing to do is to blow ourselves up")
+		accord.Shutdown(err)
+		return err
+	}
+
+	err = accord.state.Update(msg)
+	if err != nil {
+		accord.Logger.WithError(err).Warn("We could not update our internal state. Blowing up our application")
+		accord.Shutdown(err)
+		return err
+	}
+
 	return nil
 }

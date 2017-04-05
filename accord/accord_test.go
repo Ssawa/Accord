@@ -25,9 +25,9 @@ func dummyAccord() *Accord {
 }
 
 func accordCleanup() {
-	os.RemoveAll(syncFilename)
-	os.RemoveAll(historyFilename)
-	os.RemoveAll(stateFilename)
+	os.RemoveAll(SyncFilename)
+	os.RemoveAll(HistoryFilename)
+	os.RemoveAll(StateFilename)
 }
 
 type testingWriter struct {
@@ -127,7 +127,7 @@ func TestAccordComponentStop(t *testing.T) {
 	err := accord.Start()
 	assert.Nil(t, err)
 
-	accord.stop()
+	accord.Stop()
 
 	assert.True(t, comp1.stopped)
 	assert.True(t, comp2.stopped)

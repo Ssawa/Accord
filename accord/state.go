@@ -86,9 +86,12 @@ func (state *State) GetCurrent() uint64 {
 }
 
 // Update updates our current state to signify that a message has been
-// processed by our system
-func (state *State) Update(msg Message) error {
+// processed by our system. We also set the Message's "StateAt" field
+// to make sure it's correct
+func (state *State) Update(msg *Message) error {
 	original := state.cached
+
+	msg.StateAt = state.cached
 
 	state.cached += msg.ID
 

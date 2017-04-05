@@ -18,6 +18,9 @@ type Message struct {
 	// of a suggestion rather than a hard truth but it's the best we've got
 	Timestamp time.Time
 
+	// StateAt represents the state of the Message's originating Accord process when it was processed
+	StateAt uint64
+
 	// The actual content of the message. Our system should make as little assumptions about this as possible
 	// and instead leave application specific logic to implementors
 	Payload []byte
@@ -62,7 +65,8 @@ func (msg *Message) genID() error {
 	var buf bytes.Buffer
 	encoder := gob.NewEncoder(&buf)
 
-	// Are there any other fields we should make our ID dependant on?
+	// Are there any other fields we should make our ID dependant on? We can't use StateAt because
+	// it doesn't get set until our message *actually* gets executed
 	err := encoder.Encode(struct {
 		Timestamp time.Time
 		Payload   []byte
