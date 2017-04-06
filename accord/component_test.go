@@ -1,6 +1,7 @@
 package accord
 
 import (
+	"errors"
 	"syscall"
 	"testing"
 	"time"
@@ -65,6 +66,32 @@ func TestComponentRunnerShutdown(t *testing.T) {
 	assert.Equal(t, comp.runCount, 1)
 }
 
+type testComponentStructMultiple struct {
+	testComponentStruct
+}
+
+func (comp *testComponentStructMultiple) tick(*Accord) {
+	comp.runCount++
+	comp.Shutdown(nil)
+	comp.Shutdown(nil)
+}
+
+// Make sure we can't accidentally get into dead locks
+func TestComponentRunnerShutdownMultiple(t *testing.T) {
+	AccordCleanup()
+	defer AccordCleanup()
+
+	comp := testComponentStructMultiple{}
+	accord := DummyAccord()
+	accord.Start()
+
+	comp.Start(accord)
+
+	comp.WaitForStop()
+
+	assert.Equal(t, comp.runCount, 1)
+}
+
 type testComponentZMQ struct {
 	ComponentRunner
 	t           *testing.T
@@ -118,4 +145,42 @@ func TestZMQRunnerStop(t *testing.T) {
 	comp.WaitForStop()
 
 	assert.True(t, comp.runOnce)
+}
+
+var errKnown1 = errors.New("KNOWN ERROR1")
+var errKnown2 = errors.New("KNOWN ERROR2")
+
+type shutdownRunner struct {
+	ComponentRunner
+	errs     []error
+	runCount int
+}
+
+func (run *shutdownRunner) Start(acrd *Accord) error {
+	run.runCount = 0
+	run.Init(acrd, run.tick, nil, nil)
+	return nil
+}
+
+func (run *shutdownRunner) tick(*Accord) {
+	run.runCount++
+
+	var err error
+	err, run.errs = run.errs[0], run.errs[1:]
+	run.ExpectedOrShutdown(err, errKnown1, errKnown2)
+	return
+}
+
+func TestComponentRunnerExpectedOrShutdown(t *testing.T) {
+	AccordCleanup()
+	defer AccordCleanup()
+
+	acrd := DummyAccord()
+	acrd.Start()
+	runner := shutdownRunner{errs: []error{errKnown2, errKnown1, errors.New("STRANGE ERROR")}}
+	runner.Start(acrd)
+
+	runner.WaitForStop()
+
+	assert.Equal(t, 3, runner.runCount)
 }

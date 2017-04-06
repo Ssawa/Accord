@@ -140,8 +140,27 @@ func (runner *ComponentRunner) WaitForStop() {
 	runner.log.Info("Component stopped")
 }
 
+// Shutdown offers a simple way for a component to trigger a complete shutdown of the system. This will not only shutdown
+// this specific component, but the *entire* Accord system. As such, it should only be used in cases where there is an
+// unrecoverable error and the only proper course of action is to panic and bring the app down
 func (runner *ComponentRunner) Shutdown(err error) {
 	runner.log.WithError(err).Error("Component shutting down with error")
 	runner.Stop(1)
 	runner.accord.Shutdown(err)
+}
+
+// ExpectedOrShutdown gives implementors a simpler way of performing error checking to see that an error is expected, otherwise
+// trigger a shutdown of the system. If we determine that it is an expected error we return true
+func (runner *ComponentRunner) ExpectedOrShutdown(real error, expected ...error) bool {
+	match := false
+
+	for _, err := range expected {
+		if err == real {
+			match = true
+		}
+	}
+	if !match {
+		runner.Shutdown(real)
+	}
+	return match
 }

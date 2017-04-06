@@ -1,7 +1,6 @@
 package components
 
 import (
-	"syscall"
 	"time"
 
 	"github.com/Ssawa/accord/accord"
@@ -58,11 +57,8 @@ func (listener *PollListener) Start(accord *accord.Accord) (err error) {
 func (listener *PollListener) tick(*accord.Accord) {
 	_, err := listener.sock.Recv(0)
 	if err != nil {
-		if err == zmq.Errno(syscall.EAGAIN) {
-			return
-		} else {
-			listener.Shutdown(err)
-		}
+		listener.ExpectedOrShutdown(err, ZMQTimeout)
+		return
 	}
 }
 
