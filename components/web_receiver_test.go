@@ -68,6 +68,9 @@ func TestWebReceiverNewCommand(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, string(body), "ok")
 
+	status := accord.Status()
+	assert.Equal(t, uint64(1), status.ToBeSyncedSize)
+
 	receiver.Stop(0)
 	receiver.WaitForStop()
 	accord.Stop()

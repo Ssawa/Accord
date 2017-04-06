@@ -16,7 +16,7 @@ func TestMessageGenID(t *testing.T) {
 }
 
 func TestMessageSerializationAndDeserialization(t *testing.T) {
-	msg := Message{Timestamp: time.Date(1985, time.October, 10, 26, 0, 0, 0, time.UTC), Payload: []byte{123}}
+	msg := Message{Timestamp: time.Date(1985, time.October, 10, 26, 0, 0, 0, time.UTC), Payload: []byte{123}, StateAt: 839}
 	msg.genID()
 
 	data, err := msg.Serialize()
@@ -28,4 +28,5 @@ func TestMessageSerializationAndDeserialization(t *testing.T) {
 	assert.Equal(t, msg.Timestamp, newMsg.Timestamp)
 	assert.Equal(t, msg.Payload, newMsg.Payload)
 	assert.Equal(t, msg.ID, newMsg.ID)
+	assert.Equal(t, uint64(839), msg.StateAt)
 }

@@ -62,8 +62,8 @@ func DeserializeMessage(data []byte) (*Message, error) {
 // genID takes a partially constructed Message and generates an identification using the present
 // fields
 func (msg *Message) genID() error {
-	var buf bytes.Buffer
-	encoder := gob.NewEncoder(&buf)
+	buf := &bytes.Buffer{}
+	encoder := gob.NewEncoder(buf)
 
 	// Are there any other fields we should make our ID dependant on? We can't use StateAt because
 	// it doesn't get set until our message *actually* gets executed
@@ -88,11 +88,11 @@ func (msg *Message) genID() error {
 	return nil
 }
 
-// Serialize encodes the Message into a byte slice so that it can be transported over a network. The DeserializeMessage
-// function can subsequently be used to recreate the Message
+// Serialize encodes the Message into a byte slice so that it can be transported over a network or onto our disk.
+// The DeserializeMessage function can subsequently be used to recreate the Message
 func (msg *Message) Serialize() ([]byte, error) {
-	var buf bytes.Buffer
-	encoder := gob.NewEncoder(&buf)
+	buf := &bytes.Buffer{}
+	encoder := gob.NewEncoder(buf)
 
 	err := encoder.Encode(*msg)
 

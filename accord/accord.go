@@ -1,6 +1,7 @@
 package accord
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"path"
@@ -15,6 +16,13 @@ const (
 	HistoryFilename = "history.stack"
 	StateFilename   = "state.db"
 )
+
+// Status gives some insights into the current internal state of the Accord process
+type Status struct {
+	ToBeSyncedSize uint64
+	HistorySize    uint64
+	State          uint64
+}
 
 // Manager is where the majority of application specific logic should be stored and is generally
 // where you can actually *use* Accord. The Accord process will call these Manager functions
@@ -232,5 +240,36 @@ func (accord *Accord) HandleNewMessage(msg *Message) error {
 		return err
 	}
 
+	fmt.Println("Hello")
+	serialized, err := msg.Serialize()
+	if err != nil {
+		accord.Logger.WithError(err).Warn("Could not serialize message for storage. Shutting down our application")
+		accord.Shutdown(err)
+		return err
+	}
+
+	_, err = accord.syncQueue.Enqueue(serialized)
+	if err != nil {
+		accord.Logger.WithError(err).Warn("Could not save new message to our queue")
+		accord.Shutdown(err)
+		return err
+	}
+
+	_, err = accord.historyStack.Push(serialized)
+	if err != nil {
+		accord.Logger.WithError(err).Warn("Could not save our new message in our stack")
+		accord.Shutdown(err)
+		return err
+	}
+
 	return nil
+}
+
+// Status returns some insight into the internal metrics of the Accord process
+func (accord *Accord) Status() Status {
+	return Status{
+		ToBeSyncedSize: accord.syncQueue.Length(),
+		HistorySize:    accord.historyStack.Length(),
+		State:          accord.state.GetCurrent(),
+	}
 }
