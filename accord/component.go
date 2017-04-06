@@ -38,6 +38,8 @@ type ComponentRunner struct {
 
 	// Allow users of ComponentRunner to specify custom fields to be logged
 	log *logrus.Entry
+
+	accord *Accord
 }
 
 // Init takes a pointer reference to an accord struct and two functions which can make use of it.
@@ -61,6 +63,7 @@ func (runner *ComponentRunner) Init(accord *Accord, tick func(*Accord), cleanup 
 	runner.stopped = false
 	runner.stopSignal = make(chan int, 1)
 	runner.doneSignal = sync.NewCond(&sync.Mutex{})
+	runner.accord = accord
 
 	if log != nil {
 		runner.log = log
@@ -116,10 +119,11 @@ func (runner *ComponentRunner) Stop(sig int) {
 	// Hopefully this if statement will keep us from hanging forever if
 	// stop is accidentally called multiple times in a row (for instance,
 	// if the thread is stopped from within the thread and outside)
-	if !runner.stopped {
+	if !runner.stopped || !runner.stopping {
 		runner.log.Info("Sending stop signal")
 		runner.stopping = true
 		runner.stopSignal <- sig
+		runner.log.Debug("Sent stop signal")
 	}
 }
 
@@ -134,4 +138,10 @@ func (runner *ComponentRunner) WaitForStop() {
 	}
 	runner.doneSignal.L.Unlock()
 	runner.log.Info("Component stopped")
+}
+
+func (runner *ComponentRunner) Shutdown(err error) {
+	runner.log.WithError(err).Error("Component shutting down with error")
+	runner.Stop(1)
+	runner.accord.Shutdown(err)
 }

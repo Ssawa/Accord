@@ -1,6 +1,7 @@
 package accord
 
 import (
+	"syscall"
 	"testing"
 	"time"
 
@@ -44,12 +45,18 @@ func (comp *testComponentStruct) Start(accord *Accord) {
 
 func (comp *testComponentStruct) tick(*Accord) {
 	comp.runCount++
-	comp.ComponentRunner.Stop(1)
+	comp.Shutdown(nil)
 }
 
-func TestComponentRunnerStopFromInside(t *testing.T) {
+func TestComponentRunnerShutdown(t *testing.T) {
+	AccordCleanup()
+	defer AccordCleanup()
+
 	comp := testComponentStruct{}
-	comp.Start(DummyAccord())
+	accord := DummyAccord()
+	accord.Start()
+
+	comp.Start(accord)
 
 	// This returning at all indicates that our test passes
 	comp.WaitForStop()
@@ -89,6 +96,7 @@ func (comp *testComponentZMQ) tick(*Accord) {
 
 	assert.Equal(comp.t, i, -1)
 	assert.NotNil(comp.t, err)
+	assert.Equal(comp.t, err, zmq.Errno(syscall.EAGAIN))
 
 	s, err := comp.sockReceive.Recv(0)
 	assert.Empty(comp.t, s)

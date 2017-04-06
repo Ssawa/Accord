@@ -146,7 +146,7 @@ func (accord *Accord) Start(signals ...os.Signal) (err error) {
 		return err
 	}
 
-	accord.shutdown = make(chan error)
+	accord.shutdown = make(chan error, 1)
 
 	accord.Logger.Info("Starting components")
 	// Iterate over all of our passed in components and start them up one by one
@@ -199,7 +199,10 @@ func (accord *Accord) Listen() error {
 // Shutdown provides a mechanism from which components and goroutines can trigger a shutdown
 // of Accord if they are in an unrecoverable state.
 func (accord *Accord) Shutdown(err error) {
+	accord.Logger.WithError(err).Warn("Accord is shutting down with error")
 	accord.shutdown <- err
+	accord.Logger.Debug("Accord sent shutdown signal")
+
 }
 
 // StartAndListen is a wrapper around the Init and Start functions, allowing for

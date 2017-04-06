@@ -2,6 +2,7 @@ package components
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/ioutil"
 	"net/http/httptest"
 	"testing"
@@ -74,4 +75,33 @@ func TestWebReceiverNewCommand(t *testing.T) {
 	receiver.Stop(0)
 	receiver.WaitForStop()
 	accord.Stop()
+}
+
+func TestWebReceiverStatus(t *testing.T) {
+	accord.AccordCleanup()
+	defer accord.AccordCleanup()
+
+	req := httptest.NewRequest("GET", "/status", nil)
+	resp := httptest.NewRecorder()
+
+	receiver := WebReceiver{}
+	acrd := accord.DummyAccord()
+
+	acrd.Start()
+	receiver.Start(acrd)
+
+	receiver.mux.ServeHTTP(resp, req)
+
+	assert.Equal(t, resp.Code, 200)
+
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
+	var status accord.Status
+	err = json.Unmarshal(body, &status)
+	assert.Nil(t, err)
+
+	assert.Equal(t, uint64(0), status.HistorySize)
+	assert.Equal(t, uint64(0), status.ToBeSyncedSize)
+	assert.Equal(t, uint64(0), status.State)
 }

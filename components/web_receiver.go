@@ -1,6 +1,7 @@
 package components
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -53,6 +54,7 @@ func (receiver *WebReceiver) Start(accord *accord.Accord) (err error) {
 	// Register our routes
 	receiver.mux.HandleFunc("/", receiver.newCommand)
 	receiver.mux.HandleFunc("/ping", receiver.ping)
+	receiver.mux.HandleFunc("/status", receiver.status)
 
 	// Start our server in a background thread so that we don't block
 	receiver.server = &http.Server{Addr: receiver.BindAddress, Handler: receiver.mux}
@@ -93,6 +95,7 @@ func (receiver *WebReceiver) WaitForStop() {
 // Note that this message does *not* transport Message structs, it *creates* new ones
 // using the passed in data as a payload
 func (receiver *WebReceiver) newCommand(w http.ResponseWriter, r *http.Request) {
+	receiver.log.Debug("Received a new command request")
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		receiver.log.WithError(err).Warn("Error parsing new message")
@@ -114,6 +117,7 @@ func (receiver *WebReceiver) newCommand(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	receiver.log.Debug("New command successfully handled")
 	w.WriteHeader(201)
 	w.Write([]byte("ok"))
 }
@@ -123,4 +127,17 @@ func (receiver *WebReceiver) newCommand(w http.ResponseWriter, r *http.Request) 
 func (receiver *WebReceiver) ping(w http.ResponseWriter, r *http.Request) {
 	receiver.log.Debug("Ping request")
 	w.Write([]byte("pong"))
+}
+
+// status is a handler that let's external applications see the internal status of Accord
+func (receiver *WebReceiver) status(w http.ResponseWriter, r *http.Request) {
+	status := receiver.accord.Status()
+	data, err := json.Marshal(status)
+	if err != nil {
+		receiver.log.WithError(err).Warn("Error encoding status to json")
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Write(data)
 }

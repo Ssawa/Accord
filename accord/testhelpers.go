@@ -44,7 +44,7 @@ func DummyAccord() *Accord {
 		Out:       ioutil.Discard,
 		Formatter: new(logrus.TextFormatter),
 		Hooks:     make(logrus.LevelHooks),
-		Level:     logrus.InfoLevel,
+		Level:     logrus.DebugLevel,
 	}
 
 	return NewAccord(NewDummerManager(), nil, "", blankLogger.WithFields(nil))
