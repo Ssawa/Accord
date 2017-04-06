@@ -11,9 +11,15 @@ import (
 )
 
 const (
-	SyncFilename    = "sync.queue"
+	// SyncFilename is where we will persist our synchronization data
+	SyncFilename = "sync.queue"
+
+	// HistoryFilename is where we will persist the history of messages we've processed for later conflict resolution
+	// until we can be confident we don't need them anymore
 	HistoryFilename = "history.stack"
-	StateFilename   = "state.db"
+
+	// StateFilename is where we will persist the internal state of our process
+	StateFilename = "state.db"
 )
 
 // Status gives some insights into the current internal state of the Accord process
@@ -59,13 +65,13 @@ type Accord struct {
 	// that the implementor can choose what kind of synchronization strategies to use (or write his/her own)
 	components []Component
 
-	// syncQueue is used to keep track of all of the messages that need to be synchronized
+	// ToBeSynced is used to keep track of all of the messages that need to be synchronized
 	// remotely
-	syncQueue *goque.Queue
+	ToBeSynced *SyncQueue
 
-	// historyStack is used to keep track of the messages that were performed locally by this instance that
+	// history is used to keep track of the messages that were performed locally by this instance that
 	// can be used for resolving merge conflicts
-	historyStack *goque.Stack
+	history *HistoryStack
 
 	// state is used to keep track of the internal state of our process so help detect divergence
 	// with other Accord processes. It's probably a bit of overkill to use a LevelDB database to keep
@@ -128,13 +134,13 @@ func (accord *Accord) Start(signals ...os.Signal) (err error) {
 	// Setup our internal variables and components
 	accord.processMutex = &sync.Mutex{}
 
-	accord.syncQueue, err = goque.OpenQueue(path.Join(accord.dataDir, SyncFilename))
+	accord.ToBeSynced, err = OpenSyncQueue(path.Join(accord.dataDir, SyncFilename))
 	if err != nil {
 		accord.Logger.WithError(err).Error("Unable to load synchronization queue")
 		return err
 	}
 
-	accord.historyStack, err = goque.OpenStack(path.Join(accord.dataDir, HistoryFilename))
+	accord.history, err = OpenHistoryStack(path.Join(accord.dataDir, HistoryFilename))
 	if err != nil {
 		accord.Logger.WithError(err).Error("Unable to load history stack")
 		return err
@@ -175,8 +181,8 @@ func (accord *Accord) Stop() {
 	}
 
 	accord.Logger.Info("Closing disk connections")
-	accord.syncQueue.Close()
-	accord.historyStack.Close()
+	accord.ToBeSynced.Close()
+	accord.history.Close()
 	accord.state.Close()
 }
 
@@ -242,21 +248,14 @@ func (accord *Accord) HandleNewMessage(msg *Message) error {
 		return err
 	}
 
-	serialized, err := msg.Serialize()
-	if err != nil {
-		accord.Logger.WithError(err).Warn("Could not serialize message for storage. Shutting down our application")
-		accord.Shutdown(err)
-		return err
-	}
-
-	_, err = accord.syncQueue.Enqueue(serialized)
+	err = accord.ToBeSynced.Enqueue(msg)
 	if err != nil {
 		accord.Logger.WithError(err).Warn("Could not save new message to our queue")
 		accord.Shutdown(err)
 		return err
 	}
 
-	_, err = accord.historyStack.Push(serialized)
+	err = accord.history.Push(msg)
 	if err != nil {
 		accord.Logger.WithError(err).Warn("Could not save our new message in our stack")
 		accord.Shutdown(err)
@@ -269,8 +268,8 @@ func (accord *Accord) HandleNewMessage(msg *Message) error {
 // Status returns some insight into the internal metrics of the Accord process
 func (accord *Accord) Status() Status {
 	return Status{
-		ToBeSyncedSize: accord.syncQueue.Length(),
-		HistorySize:    accord.historyStack.Length(),
+		ToBeSyncedSize: accord.ToBeSynced.Size(),
+		HistorySize:    accord.history.Size(),
 		State:          accord.state.GetCurrent(),
 	}
 }

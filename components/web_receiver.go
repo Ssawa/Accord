@@ -29,12 +29,21 @@ type WebReceiver struct {
 	// The address the HTTP server should bind to
 	BindAddress string
 
-	server     *http.Server
-	mux        *http.ServeMux
+	// server is the HTTP web server that will be binding to a port and listening for requests
+	server *http.Server
+
+	// mux is where we register our HTTP routes so that requests can be dispatched to the correct
+	// function handlers
+	mux *http.ServeMux
+
+	// stopSignal is used to communicate with our background process to cleanly shutdown our
+	// process
 	stopSignal *sync.Cond
-	stopping   bool
-	accord     *accord.Accord
-	log        *logrus.Entry
+
+	stopping bool
+
+	accord *accord.Accord
+	log    *logrus.Entry
 }
 
 // Start initializes our web routes and starts the HTTP server (it does *not*, however, assure
@@ -97,6 +106,10 @@ func (receiver *WebReceiver) WaitForStop() {
 func (receiver *WebReceiver) newCommand(w http.ResponseWriter, r *http.Request) {
 	receiver.log.Debug("Received a new command request")
 	body, err := ioutil.ReadAll(r.Body)
+
+	// A called should take a status of 500 as an indication that something went wrong While
+	// processing their message and that they should inspect the server or try again
+
 	if err != nil {
 		receiver.log.WithError(err).Warn("Error parsing new message")
 		http.Error(w, err.Error(), 500)
@@ -117,19 +130,21 @@ func (receiver *WebReceiver) newCommand(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// We return a 201 response to indicate that a new message has been created
 	receiver.log.Debug("New command successfully handled")
 	w.WriteHeader(201)
 	w.Write([]byte("ok"))
 }
 
 // pingHandler is responsible for sending back a small response upon any kind of request to indicate
-// that we're still alive
+// that we're still alive. If successful we return "pong" with a 200 error
 func (receiver *WebReceiver) ping(w http.ResponseWriter, r *http.Request) {
 	receiver.log.Debug("Ping request")
 	w.Write([]byte("pong"))
 }
 
-// status is a handler that let's external applications see the internal status of Accord
+// status is a handler that let's external applications see the internal status of Accord. We return
+// our Accord's status as a JSON string with a status of 200 if successful
 func (receiver *WebReceiver) status(w http.ResponseWriter, r *http.Request) {
 	status := receiver.accord.Status()
 	data, err := json.Marshal(status)
