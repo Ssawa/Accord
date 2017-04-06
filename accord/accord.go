@@ -1,7 +1,6 @@
 package accord
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"path"
@@ -240,7 +239,6 @@ func (accord *Accord) HandleNewMessage(msg *Message) error {
 		return err
 	}
 
-	fmt.Println("Hello")
 	serialized, err := msg.Serialize()
 	if err != nil {
 		accord.Logger.WithError(err).Warn("Could not serialize message for storage. Shutting down our application")

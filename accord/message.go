@@ -63,6 +63,7 @@ func DeserializeMessage(data []byte) (*Message, error) {
 // fields
 func (msg *Message) genID() error {
 	buf := &bytes.Buffer{}
+
 	encoder := gob.NewEncoder(buf)
 
 	// Are there any other fields we should make our ID dependant on? We can't use StateAt because
@@ -76,6 +77,12 @@ func (msg *Message) genID() error {
 		return err
 	}
 
+	// Golang's encoder doesn't appear to be deterministic, it *seems* to carry around some global state
+	// based on prior calls to the function, from which it updates a little header (but not the underlying
+	// data, it seems). This obviously means that the ultimate hash will be different based on this internal
+	// state. That's okay for our purposes, as we're essentially just using this as a glorified PRNG but we'd
+	// do well to keep an eye on it, as we're also using go's gob decoder to serialize and deserialize over the
+	// network and to disk and any undefined behavior could really screw us up
 	hasher := sha256.New()
 	hasher.Write(buf.Bytes())
 	hash := hasher.Sum(nil)
