@@ -4,7 +4,6 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/beeker1121/goque"
 	"github.com/sirupsen/logrus"
 )
 
@@ -25,17 +24,17 @@ func NewDummerManager() DummyManager {
 		remote: make([]Message, 1),
 	}
 }
-func (manager DummyManager) Process(msg *Message, fromRemote bool) error {
+func (manager DummyManager) Process(msg Message, fromRemote bool) error {
 	if fromRemote {
-		manager.remote = append(manager.remote, *msg)
+		manager.remote = append(manager.remote, msg)
 	} else {
-		manager.local = append(manager.local, *msg)
+		manager.local = append(manager.local, msg)
 	}
 
 	return nil
 }
 
-func (manager DummyManager) ShouldProcess(msg Message, history *goque.Stack) bool {
+func (manager DummyManager) ShouldProcess(msg Message, history *HistoryStack) bool {
 	return true
 }
 

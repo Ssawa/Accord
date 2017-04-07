@@ -6,7 +6,6 @@ import (
 	"path"
 	"sync"
 
-	"github.com/beeker1121/goque"
 	"github.com/sirupsen/logrus"
 )
 
@@ -37,11 +36,11 @@ type Manager interface {
 	// locally created new messages or sent from a remote Accord server; this is indicated by the fromRemote
 	// boolean. You should try to resolve all errors internally, returning an error will tell Accord to blow
 	// up
-	Process(msg *Message, fromRemote bool) error
+	Process(msg Message, fromRemote bool) error
 
 	// ShouldProcess gives the Manager a chance to filter which Messages get passed to Process so as to resolve
 	// synchronization conflicts
-	ShouldProcess(msg Message, history *goque.Stack) bool
+	ShouldProcess(msg Message, history *HistoryStack) bool
 }
 
 // Accord is the main struct responsible for maintaining state and coordinating
@@ -234,7 +233,7 @@ func (accord *Accord) HandleNewMessage(msg *Message) error {
 	defer accord.processMutex.Unlock()
 
 	accord.Logger.Debug("Processing a new message")
-	err := accord.manager.Process(msg, false)
+	err := accord.manager.Process(*msg, false)
 	if err != nil {
 		accord.Logger.WithError(err).Warn("The manager had an error while processing a message. The safest thing to do is to blow ourselves up")
 		accord.Shutdown(err)
@@ -260,6 +259,71 @@ func (accord *Accord) HandleNewMessage(msg *Message) error {
 		accord.Logger.WithError(err).Warn("Could not save our new message in our stack")
 		accord.Shutdown(err)
 		return err
+	}
+
+	return nil
+}
+
+// HandleRemoteMessage is responsible for taking a message from a remote client and updating ourselves
+// to be in sync with it. It does this by checking to see if we've diverged from the remote, checking
+// if our Manager thinks processing the message will cause some sort of collision with a change it has
+// already made, and finally actually triggering the processing or not. In either case, we'll update our
+// internal state to indicate that we handled this specific message (which will help with detecting
+// divergences in the future)
+func (accord *Accord) HandleRemoteMessage(msg *Message) error {
+	accord.processMutex.Lock()
+	defer accord.processMutex.Unlock()
+
+	accord.Logger.Debug("Handling a remote message")
+
+	// We first need to determine if this is something we even *should* process
+	var shouldProcess bool
+	if accord.state.GetCurrent() == msg.StateAt {
+		// If our state matches the state the message was in when it was processed remotely than we automatically
+		// know we need to process it
+		accord.Logger.Debug("Our state and the remote state are synchronized, will perform the operation")
+		shouldProcess = true
+	} else if accord.manager.ShouldProcess(*msg, accord.history) {
+		// If our state has diverged from the remote than we need to ask our Manager if it thinks it's safe
+		// to process this message or it it will cause a collision with our update history
+		accord.Logger.Debug("Our manager told us this is a process that should be processed")
+		shouldProcess = true
+	} else {
+		// If both the previous conditions failed than we just want to ignore this particular message
+		accord.Logger.Debug("Choosing not to process this message")
+		shouldProcess = false
+	}
+
+	// If we determined that we want to process this message than send it over to the Manager to do some application
+	// specific operation with the data
+	if shouldProcess {
+		accord.Logger.Debug("Processing remote message")
+		err := accord.manager.Process(*msg, true)
+		if err != nil {
+			accord.Logger.WithError(err).Warn("The manager had an error while processing a message. The safest thing to do is to blow ourselves up")
+			accord.Shutdown(err)
+			return err
+		}
+	}
+
+	// Regardless of whether we actually processed the message or not we want to update our state to indicate that this specific message
+	// was handled
+	err := accord.state.Update(msg)
+	if err != nil {
+		accord.Logger.WithError(err).Warn("We could not update our internal state. Blowing up our application")
+		accord.Shutdown(err)
+		return err
+	}
+
+	// Our history stack really only makes sense for keeping track of those messages we actually processed, as we only use it to resolve
+	// conflicts and you should never have a conflict with a message you *didn't* perform
+	if shouldProcess {
+		err = accord.history.Push(msg)
+		if err != nil {
+			accord.Logger.WithError(err).Warn("Could not save our new message in our stack")
+			accord.Shutdown(err)
+			return err
+		}
 	}
 
 	return nil
