@@ -2,4 +2,4 @@
 
 cd $(dirname "$0")
 
-go test $(glide novendor) -v -timeout 900ms $@
+go test $(glide novendor) -v -timeout 1000ms $@

@@ -32,6 +32,8 @@ type PollRequestor struct {
 	log  *logrus.Entry
 
 	sendOk bool
+
+	state func(*accord.Accord)
 }
 
 // Start initializs our PollRequestor and creates, configures, and connects our sockets
@@ -193,8 +195,11 @@ func (requestor *PollRequestor) tick(acrd *accord.Accord) {
 // trySendOk attempts to send an "ok" message to the remote while handling the case of a possible timeout. If successful we return
 // true, otherwise false
 func (requestor *PollRequestor) trySendOk() bool {
-	_, err := requestor.sock.Send("ok", 0)
+	requestor.log.Debug("Sending 'ok'")
+	t, err := requestor.sock.Send("ok", 0)
+	requestor.log.Warn(t)
 	if err != nil {
+
 		if !requestor.ExpectedOrShutdown(err, ZMQTimeout) {
 			return false
 		}
