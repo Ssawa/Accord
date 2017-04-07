@@ -1,6 +1,7 @@
 package accord
 
 import (
+	"io/ioutil"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -46,7 +47,7 @@ func (manager *DummyManager) ShouldProcess(msg Message, history *HistoryStack) b
 
 func DummyAccord() *Accord {
 	blankLogger := &logrus.Logger{
-		Out:       os.Stdout,
+		Out:       ioutil.Discard,
 		Formatter: new(logrus.TextFormatter),
 		Hooks:     make(logrus.LevelHooks),
 		Level:     logrus.DebugLevel,

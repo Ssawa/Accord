@@ -33,12 +33,17 @@ type PollRequestor struct {
 
 	sendOk bool
 
+	// state helps us represent a very simple and very loose state machine. Essentially, our tick function will only execute whatever this function
+	// is. To change your state, simply change the function
 	state func(*accord.Accord)
 }
 
 // Start initializs our PollRequestor and creates, configures, and connects our sockets
 func (requestor *PollRequestor) Start(accord *accord.Accord) (err error) {
 	requestor.log = accord.Logger.WithField("component", "PollRequestor")
+
+	requestor.log.Debug("Entering requestMsgState")
+	requestor.state = requestor.requestMsgState
 
 	// Default our timeout to something reasonable
 	if requestor.ListenTimeout == 0 {
@@ -76,20 +81,8 @@ func (requestor *PollRequestor) Start(accord *accord.Accord) (err error) {
 		return err
 	}
 
-	// ZeroMQ traditionally has a pretty strict REQUEST/REPLY protocol and if that's broken your sockets get into
-	// a bad state. These two little options make it so that you can resend messages if they fail without having
-	// to restart your socket and adds a little sequence number to messages so that this behavior doesn't cause
-	// any issues (http://api.zeromq.org/4-1:zmq-setsockopt)
-	err = requestor.sock.SetReqRelaxed(0)
-	if err != nil {
-		requestor.log.WithError(err).Error("Could not set ZeroMQ REQ socket into a relaxed state")
-		return err
-	}
-	err = requestor.sock.SetReqCorrelate(0)
-	if err != nil {
-		requestor.log.WithError(err).Error("Could not set ZeroMQ REQ socket into correlate mode")
-		return err
-	}
+	// I attempted to set the socket to REQ Relaxed and REQ Coralated but it just didn't work.
+	// It's worth investigating however. For now we'll just
 
 	requestor.ComponentRunner.Init(accord, requestor.tick, requestor.cleanup, requestor.log)
 	return nil
@@ -108,31 +101,26 @@ func (requestor *PollRequestor) cleanup(*accord.Accord) {
 // and then send an "ok" to signify to the remote that it has successfully performed it's operation and that
 // the remote can now safely dequeue the message and move on to the next
 func (requestor *PollRequestor) tick(acrd *accord.Accord) {
-	// As this is a polling mechanism, we initialize the request to the remote server.
+	// Execute our "state machine"
+	requestor.state(acrd)
+}
 
-	// sendOk will be set if we tried sending "ok" in response to the remote previously but encountered a timeout.
-	// TODO - IMPLEMENT A STATEMACHINE TO HANDLE THIS MORE CLEANLY AND SCALABLY
-	if requestor.sendOk {
-		if requestor.trySendOk() {
-			// We finally were able to get our "ok" to go through. Change our state so that we go back to requesting
-			// new messages
-			requestor.sendOk = false
-		}
-	}
-
-	// Here we start our main process by requesting the remote for a new message from its queue
+// requestMsgState is our initial state where we send a request off to our remote to get a new message
+// from their queue
+func (requestor *PollRequestor) requestMsgState(acrd *accord.Accord) {
 	_, err := requestor.sock.Send("send", 0)
 	if err != nil {
 		requestor.ExpectedOrShutdown(err, ZMQTimeout)
 		return
 	}
+	requestor.log.Debug("Sent request, entering receiveState")
+	requestor.state = requestor.receiveState
+}
 
-	// We wait to get a response from our remote
+// receiveState waits to receive a response from our remote
+func (requestor *PollRequestor) receiveState(acrd *accord.Accord) {
 	data, err := requestor.sock.RecvMessageBytes(0)
 	if err != nil {
-		// If we miss the response due to a timeout that's okay, the remote won't dequeue until we give it an
-		// "ok" message and our relaxed and correlated socket configuration should, hopefully, protect us from
-		// ZeroMQ weirdness (but please test this!). We should feel safe just returning and starting over again
 		requestor.ExpectedOrShutdown(err, ZMQTimeout)
 		return
 	}
@@ -143,13 +131,13 @@ func (requestor *PollRequestor) tick(acrd *accord.Accord) {
 		// We received an actual message from the remote and we must now process it
 		if len(data) < 2 {
 			requestor.log.Error("Received a message from remote that we don't know how to parse")
-			return
+			break
 		}
 		msg, err := accord.DeserializeMessage(data[1])
 		if err != nil {
 			// Not much we can do, let's just log, return and try again I guess
 			requestor.log.WithError(err).Error("Error decoding remote message")
-			return
+			break
 		}
 
 		err = acrd.HandleRemoteMessage(msg)
@@ -158,10 +146,13 @@ func (requestor *PollRequestor) tick(acrd *accord.Accord) {
 			// (although if we do get an error from HandleRemoteMessage it probably means Accord will
 			// shutdown shortly after this)
 			requestor.log.WithError(err).Error("Error handling remote message")
-			return
+			break
 		}
 
-		requestor.trySendOk()
+		// We need to send out our "ok" to tell the remote it's okay to clean up
+		requestor.log.Debug("Entering sendOKState")
+		requestor.state = requestor.sendOKState
+		return
 
 	case "empty":
 		// If the remote is empty than we should just wait a little bit before trying again later
@@ -186,32 +177,22 @@ func (requestor *PollRequestor) tick(acrd *accord.Accord) {
 				requestor.Shutdown(errors.New("remote dequeue received"))
 			}
 		} else {
-			requestor.log.Error("Received an unparsable error from remote")
+			requestor.log.Warn("Received an unparsable error from remote")
 		}
-
+	default:
+		requestor.log.WithField("message", string(data[0])).Warn("Got a message we don't know how to handle")
 	}
+	requestor.log.Debug("Entering requestMsgState")
+	requestor.state = requestor.requestMsgState
+
 }
 
-// trySendOk attempts to send an "ok" message to the remote while handling the case of a possible timeout. If successful we return
-// true, otherwise false
-func (requestor *PollRequestor) trySendOk() bool {
-	requestor.log.Debug("Sending 'ok'")
-	t, err := requestor.sock.Send("ok", 0)
-	requestor.log.Warn(t)
+func (requestor *PollRequestor) sendOKState(acrd *accord.Accord) {
+	_, err := requestor.sock.Send("ok", 0)
 	if err != nil {
-
-		if !requestor.ExpectedOrShutdown(err, ZMQTimeout) {
-			return false
-		}
-
-		// TODO - Investigate more elegant solution
-		// Not a great solution but the issue is that if we timeout sending our "ok" we can't just return and start over
-		// again with a "send" or else will probably process the same message twice. So we need to update our state so that
-		// on the next call to tick we try sending "ok" again rather than "send". We should eventually clean this up so that
-		// we have a more defined statemachine rather than just trashy "if" statements
-		requestor.sendOk = true
-		requestor.log.WithError(err).Warn("Timedout sending 'ok', will try sending again")
-		return false
+		requestor.ExpectedOrShutdown(err, ZMQTimeout)
+		return
 	}
-	return true
+	requestor.log.Debug("Entering receiveState")
+	requestor.state = requestor.receiveState
 }

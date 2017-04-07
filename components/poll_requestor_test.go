@@ -65,9 +65,6 @@ func TestPollRequestor(t *testing.T) {
 	assert.Equal(t, uint64(1), acrd.Status().HistorySize)
 	assert.Equal(t, uint64(5), acrd.Status().State)
 
-	// // Let's see how our system holds up if we shutdown in the middle of a transaction
-	// data, err := server.Recv(0)
-	// assert.Nil(t, err)
-	// assert.Equal(t, "send", data)
-
+	_, err = server.Send("deleted", 0)
+	assert.Nil(t, err)
 }
