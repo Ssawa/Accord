@@ -14,28 +14,35 @@ func AccordCleanup() {
 }
 
 type DummyManager struct {
-	local  []Message
-	remote []Message
+	Local              []Message
+	Remote             []Message
+	ProcessCount       int
+	ShouldProcessCount int
+
+	ShouldProcessRet bool
 }
 
-func NewDummerManager() DummyManager {
-	return DummyManager{
-		local:  make([]Message, 1),
-		remote: make([]Message, 1),
+func NewDummerManager() *DummyManager {
+	return &DummyManager{
+		Local:  make([]Message, 1),
+		Remote: make([]Message, 1),
 	}
 }
-func (manager DummyManager) Process(msg Message, fromRemote bool) error {
+func (manager *DummyManager) Process(msg Message, fromRemote bool) error {
+	manager.ProcessCount++
+
 	if fromRemote {
-		manager.remote = append(manager.remote, msg)
+		manager.Remote = append(manager.Remote, msg)
 	} else {
-		manager.local = append(manager.local, msg)
+		manager.Local = append(manager.Local, msg)
 	}
 
 	return nil
 }
 
-func (manager DummyManager) ShouldProcess(msg Message, history *HistoryStack) bool {
-	return true
+func (manager *DummyManager) ShouldProcess(msg Message, history *HistoryStack) bool {
+	manager.ShouldProcessCount++
+	return manager.ShouldProcessRet
 }
 
 func DummyAccord() *Accord {

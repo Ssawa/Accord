@@ -218,30 +218,11 @@ func TestAccordMultipleNewOperations(t *testing.T) {
 	assert.Equal(t, uint64(5), accord.history.Size())
 }
 
-type remoteHandleManager struct {
-	t                  *testing.T
-	processCount       int
-	shouldProcessCount int
-
-	shouldProcessRet bool
-}
-
-func (manager *remoteHandleManager) Process(msg Message, fromRemote bool) error {
-	manager.processCount++
-	assert.True(manager.t, fromRemote)
-	return nil
-}
-
-func (manager *remoteHandleManager) ShouldProcess(msg Message, history *HistoryStack) bool {
-	manager.shouldProcessCount++
-	return manager.shouldProcessRet
-}
-
 func TestAccordHandleRemoteOperation(t *testing.T) {
 	defer AccordCleanup()
 	accord := DummyAccord()
 
-	manager := remoteHandleManager{t: t, shouldProcessRet: true}
+	manager := DummyManager{ShouldProcessRet: true}
 	accord.manager = &manager
 
 	accord.Start()
@@ -255,8 +236,8 @@ func TestAccordHandleRemoteOperation(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Our states are the same so we shouldn't be asked if we should process but we should also actually process
-	assert.Equal(t, 0, manager.shouldProcessCount)
-	assert.Equal(t, 1, manager.processCount)
+	assert.Equal(t, 0, manager.ShouldProcessCount)
+	assert.Equal(t, 1, manager.ProcessCount)
 	assert.Equal(t, uint64(1), accord.history.Size())
 	assert.Equal(t, uint64(5), accord.state.GetCurrent())
 
@@ -266,20 +247,20 @@ func TestAccordHandleRemoteOperation(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Our states are the same and we're returning that we should process
-	assert.Equal(t, 1, manager.shouldProcessCount)
-	assert.Equal(t, 2, manager.processCount)
+	assert.Equal(t, 1, manager.ShouldProcessCount)
+	assert.Equal(t, 2, manager.ProcessCount)
 	assert.Equal(t, uint64(2), accord.history.Size())
 	assert.Equal(t, uint64(15), accord.state.GetCurrent())
 
 	// Diverging states, not processing
-	manager.shouldProcessRet = false
+	manager.ShouldProcessRet = false
 	msg = &Message{ID: 5, StateAt: 30}
 	err = accord.HandleRemoteMessage(msg)
 	assert.Nil(t, err)
 
 	// Our states are the same and we're saying we shouldn't process
-	assert.Equal(t, 2, manager.shouldProcessCount)
-	assert.Equal(t, 2, manager.processCount)
+	assert.Equal(t, 2, manager.ShouldProcessCount)
+	assert.Equal(t, 2, manager.ProcessCount)
 	assert.Equal(t, uint64(2), accord.history.Size())
 	assert.Equal(t, uint64(20), accord.state.GetCurrent())
 }

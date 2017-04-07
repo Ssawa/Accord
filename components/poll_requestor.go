@@ -190,6 +190,8 @@ func (requestor *PollRequestor) tick(acrd *accord.Accord) {
 	}
 }
 
+// trySendOk attempts to send an "ok" message to the remote while handling the case of a possible timeout. If successful we return
+// true, otherwise false
 func (requestor *PollRequestor) trySendOk() bool {
 	_, err := requestor.sock.Send("ok", 0)
 	if err != nil {

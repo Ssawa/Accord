@@ -21,6 +21,7 @@ func TestPollListener(t *testing.T) {
 	}
 	acrd := accord.DummyAccord()
 	err := acrd.Start()
+	assert.Nil(t, err)
 	defer acrd.Stop()
 
 	// Initialize data into our system
@@ -34,6 +35,7 @@ func TestPollListener(t *testing.T) {
 
 	// Start listener
 	err = listener.Start(acrd)
+	assert.Nil(t, err)
 	defer listener.WaitForStop()
 	defer listener.Stop(0)
 
