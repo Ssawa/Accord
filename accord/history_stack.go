@@ -109,6 +109,18 @@ func (history *HistoryStack) Size() uint64 {
 	return history.stack.Length()
 }
 
+func (history *HistoryStack) Clear() (err error) {
+	history.stackLock.Lock()
+	defer history.stackLock.Unlock()
+
+	history.stack.Drop()
+	history.stack, err = goque.OpenStack(history.path)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Close closes the underlying connection to our persisted stack
 func (history *HistoryStack) Close() {
 	history.stackLock.Lock()

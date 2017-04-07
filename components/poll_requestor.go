@@ -1,6 +1,7 @@
 package components
 
 import (
+	"encoding/binary"
 	"time"
 
 	"github.com/Ssawa/accord/accord"
@@ -38,7 +39,7 @@ type PollRequestor struct {
 	state func(*accord.Accord)
 }
 
-// Start initializs our PollRequestor and creates, configures, and connects our sockets
+// Start initializes our PollRequestor and creates, configures, and connects our sockets
 func (requestor *PollRequestor) Start(accord *accord.Accord) (err error) {
 	requestor.log = accord.Logger.WithField("component", "PollRequestor")
 
@@ -155,7 +156,14 @@ func (requestor *PollRequestor) receiveState(acrd *accord.Accord) {
 		return
 
 	case "empty":
-		// If the remote is empty than we should just wait a little bit before trying again later
+		// If the remote is empty than we should tell accord to check our state against theirs and then wait a bit before
+		// sending a new request
+		if len(data) < 2 {
+			requestor.log.Error("Received an 'empty' from remote that we don't know how to parse")
+		} else {
+			state := binary.LittleEndian.Uint64(data[1])
+			acrd.CheckRemoteState(state)
+		}
 		time.Sleep(requestor.WaitOnEmpty)
 
 	case "deleted":
@@ -182,11 +190,14 @@ func (requestor *PollRequestor) receiveState(acrd *accord.Accord) {
 	default:
 		requestor.log.WithField("message", string(data[0])).Warn("Got a message we don't know how to handle")
 	}
+	// We've received something and handled it, so now let's go back to our request state
 	requestor.log.Debug("Entering requestMsgState")
 	requestor.state = requestor.requestMsgState
 
 }
 
+// sendOKState sends out an "ok" message to the remote server to signify that
+// we've successfully processed the message
 func (requestor *PollRequestor) sendOKState(acrd *accord.Accord) {
 	_, err := requestor.sock.Send("ok", 0)
 	if err != nil {

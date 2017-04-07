@@ -1,6 +1,7 @@
 package components
 
 import (
+	"encoding/binary"
 	"time"
 
 	"github.com/Ssawa/accord/accord"
@@ -110,9 +111,11 @@ func (listener *PollListener) tick(acrd *accord.Accord) {
 		}
 
 		if msg == nil {
-			// If our queue is empty, tell the client
-			listener.log.Debug("Sending queue empty")
-			listener.sock.SendMessage("empty")
+			// If our queue is empty, tell the client and also tell it our state
+			listener.log.Debug("Sending queue empty and our status")
+			buf := make([]byte, 8)
+			binary.LittleEndian.PutUint64(buf, acrd.Status().State)
+			listener.sock.SendMessage("empty", buf)
 			return
 		}
 
@@ -159,6 +162,4 @@ func (listener *PollListener) tick(acrd *accord.Accord) {
 		listener.sock.SendMessage("deleted")
 		return
 	}
-
-	// TODO - Handle errors from client
 }

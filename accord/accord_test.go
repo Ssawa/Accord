@@ -264,3 +264,24 @@ func TestAccordHandleRemoteOperation(t *testing.T) {
 	assert.Equal(t, uint64(2), accord.history.Size())
 	assert.Equal(t, uint64(20), accord.state.GetCurrent())
 }
+
+func TestAccordCheckRemoteState(t *testing.T) {
+	defer AccordCleanup()
+	accord := DummyAccord()
+
+	accord.Start()
+	defer accord.Stop()
+
+	accord.history.Push(&Message{ID: 1})
+	assert.Equal(t, uint64(1), accord.history.Size())
+
+	val, err := accord.CheckRemoteState(accord.state.GetCurrent() + 1)
+	assert.Nil(t, err)
+	assert.False(t, val)
+	assert.Equal(t, uint64(1), accord.history.Size())
+
+	val, err = accord.CheckRemoteState(accord.state.GetCurrent())
+	assert.Nil(t, err)
+	assert.False(t, val)
+	assert.Equal(t, uint64(0), accord.history.Size())
+}

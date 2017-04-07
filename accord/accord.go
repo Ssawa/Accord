@@ -331,9 +331,35 @@ func (accord *Accord) HandleRemoteMessage(msg *Message) error {
 
 // Status returns some insight into the internal metrics of the Accord process
 func (accord *Accord) Status() Status {
+	accord.processMutex.Lock()
+	defer accord.processMutex.Unlock()
+
 	return Status{
 		ToBeSyncedSize: accord.ToBeSynced.Size(),
 		HistorySize:    accord.history.Size(),
 		State:          accord.state.GetCurrent(),
 	}
+}
+
+// CheckRemoteState compares the passed in state with our own internal and will attempt to
+// clean up our internal history using this information. If the states match we return true,
+// otherwise false
+func (accord *Accord) CheckRemoteState(remoteState uint64) (bool, error) {
+	accord.processMutex.Lock()
+	defer accord.processMutex.Unlock()
+
+	if remoteState == accord.state.GetCurrent() {
+		if accord.history.Size() > 0 {
+			accord.Logger.Info("Accord processes are aligned. Clearing out history")
+			err := accord.history.Clear()
+			if err != nil {
+				accord.Logger.WithError(err).Error("Could not clear our history")
+				accord.Shutdown(err)
+				return true, err
+			}
+		}
+		return false, nil
+	}
+
+	return false, nil
 }
