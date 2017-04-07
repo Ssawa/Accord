@@ -91,7 +91,6 @@ func (listener *PollListener) tick(acrd *accord.Accord) {
 	listener.log.Debug("Listening for message")
 	msg, err := listener.sock.Recv(0)
 	if err != nil {
-		listener.log.WithError(err).Debug("Error while receiving")
 		listener.ExpectedOrShutdown(err, ZMQTimeout)
 		return
 	}
@@ -160,4 +159,6 @@ func (listener *PollListener) tick(acrd *accord.Accord) {
 		listener.sock.SendMessage("deleted")
 		return
 	}
+
+	// TODO - Handle errors from client
 }
