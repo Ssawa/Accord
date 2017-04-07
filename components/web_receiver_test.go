@@ -38,6 +38,9 @@ func TestWebReceiverPing(t *testing.T) {
 	resp := httptest.NewRecorder()
 
 	receiver := WebReceiver{}
+	defer receiver.WaitForStop()
+	defer receiver.Stop(0)
+
 	receiver.Start(accord.DummyAccord())
 
 	receiver.mux.ServeHTTP(resp, req)
@@ -46,8 +49,6 @@ func TestWebReceiverPing(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.Nil(t, err)
 	assert.Equal(t, string(body), "pong")
-	receiver.Stop(0)
-	receiver.WaitForStop()
 }
 
 func TestWebReceiverNewCommand(t *testing.T) {
@@ -59,6 +60,10 @@ func TestWebReceiverNewCommand(t *testing.T) {
 
 	receiver := WebReceiver{}
 	accord := accord.DummyAccord()
+	defer receiver.WaitForStop()
+	defer receiver.Stop(0)
+	defer accord.Stop()
+
 	accord.Start()
 	receiver.Start(accord)
 
@@ -72,9 +77,6 @@ func TestWebReceiverNewCommand(t *testing.T) {
 	status := accord.Status()
 	assert.Equal(t, uint64(1), status.ToBeSyncedSize)
 
-	receiver.Stop(0)
-	receiver.WaitForStop()
-	accord.Stop()
 }
 
 func TestWebReceiverStatus(t *testing.T) {
@@ -86,6 +88,10 @@ func TestWebReceiverStatus(t *testing.T) {
 
 	receiver := WebReceiver{}
 	acrd := accord.DummyAccord()
+
+	defer receiver.WaitForStop()
+	defer receiver.Stop(0)
+	defer acrd.Stop()
 
 	acrd.Start()
 	receiver.Start(acrd)
