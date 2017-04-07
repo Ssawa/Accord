@@ -28,11 +28,17 @@ type PollListener struct {
 
 	sock *zmq.Socket
 	log  *logrus.Entry
+
+	state func(*accord.Accord)
+	reply []interface{}
 }
 
 // Start binds our ZeroMQ socket and gets us ready to start processing incomming requests
 func (listener *PollListener) Start(accord *accord.Accord) (err error) {
 	listener.log = accord.Logger.WithField("component", "PollListener")
+
+	listener.log.Debug("Entering recvState")
+	listener.state = listener.recvState
 
 	// Default our timeout to something reasonable
 	if listener.ListenTimeout == 0 {
@@ -89,14 +95,18 @@ func (listener *PollListener) cleanup(*accord.Accord) {
 // handled on the remote side and we can safely dequeue the message. Obviously this protocol breaks down
 // if multiple clients connect, but one thing at a time for now...
 func (listener *PollListener) tick(acrd *accord.Accord) {
-	listener.log.Debug("Listening for message")
+	listener.state(acrd)
+}
+
+func (listener *PollListener) recvState(acrd *accord.Accord) {
 	msg, err := listener.sock.Recv(0)
 	if err != nil {
 		listener.ExpectedOrShutdown(err, ZMQTimeout)
 		return
 	}
 
-	if msg == "send" {
+	switch msg {
+	case "send":
 		listener.log.Debug("Received 'send'")
 		// We have a request to send a new piece of data, let's take a look at what it is but *not*
 		// actually take it off our queue yey
@@ -106,8 +116,8 @@ func (listener *PollListener) tick(acrd *accord.Accord) {
 			// probably mean human intervention is needed). In any case, we simply tell our client somethings
 			// up but don't take down our application just yet
 			listener.log.WithError(err).Error("Error ocurred reading from the queue")
-			listener.sock.SendMessage("error", "queue read")
-			return
+			listener.reply = []interface{}{"error", "queue read"}
+			break
 		}
 
 		if msg == nil {
@@ -115,8 +125,8 @@ func (listener *PollListener) tick(acrd *accord.Accord) {
 			listener.log.Debug("Sending queue empty and our status")
 			buf := make([]byte, 8)
 			binary.LittleEndian.PutUint64(buf, acrd.Status().State)
-			listener.sock.SendMessage("empty", buf)
-			return
+			listener.reply = []interface{}{"empty", buf}
+			break
 		}
 
 		data, err := msg.Serialize()
@@ -124,17 +134,17 @@ func (listener *PollListener) tick(acrd *accord.Accord) {
 			// Like above, this isn't necessarily the end of the world in the sense that we're not screwing up our
 			// state. We simply log the error, tell the client, and keep moving
 			listener.log.WithError(err).Error("Error serializing message")
-			listener.sock.SendMessage("error", "serialize")
-			return
+			listener.reply = []interface{}{"error", "serialize"}
+			break
 		}
 
 		// We use ZeroMQ's multi part messaging here to make it easier for the client to parse the response. Essentially
 		// our responses have categories, they can be an "error", or a "msg", or a "deleted"
 		listener.log.Debug("Sending message")
-		listener.sock.SendMessage("msg", data)
-		return
+		listener.reply = []interface{}{"msg", data}
+		break
 
-	} else if msg == "ok" {
+	case "ok":
 		listener.log.Debug("Received 'ok'")
 		// If we get an "ok" from the client we assume it means that it has processed our previous send and is now synced
 		// with that message, so we can take it off our queue.
@@ -159,7 +169,28 @@ func (listener *PollListener) tick(acrd *accord.Accord) {
 
 		// This is a bit unnecessary but ZeroMQ demands we send *something* so we might as well send this
 		listener.log.Debug("sending 'deleted'")
-		listener.sock.SendMessage("deleted")
+		listener.reply = []interface{}{"deleted"}
+		break
+
+	default:
+		listener.log.WithField("message", msg).Warn("Received unknown request")
+		listener.reply = []interface{}{"unknown"}
+		break
+
+	}
+
+	listener.log.Debug("Entering sendState")
+	listener.state = listener.sendState
+}
+
+// sentData sends data over to the client
+func (listener *PollListener) sendState(acrd *accord.Accord) {
+	_, err := listener.sock.SendMessage(listener.reply...)
+	if err != nil {
+		listener.ExpectedOrShutdown(err, ZMQTimeout)
 		return
 	}
+
+	listener.log.Debug("Entering recvState")
+	listener.state = listener.recvState
 }

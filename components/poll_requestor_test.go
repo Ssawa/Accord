@@ -1,6 +1,7 @@
 package components
 
 import (
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -67,4 +68,20 @@ func TestPollRequestor(t *testing.T) {
 
 	_, err = server.Send("deleted", 0)
 	assert.Nil(t, err)
+
+	// Test sending empty
+	data, err = server.Recv(0)
+	assert.Nil(t, err)
+	assert.Equal(t, "send", data)
+
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, acrd.Status().State)
+
+	_, err = server.SendMessage("empty", buf)
+	assert.Nil(t, err)
+
+	time.Sleep(50 * time.Millisecond)
+
+	assert.Equal(t, uint64(0), acrd.Status().HistorySize)
+
 }

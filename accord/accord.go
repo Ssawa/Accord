@@ -352,6 +352,7 @@ func (accord *Accord) CheckRemoteState(remoteState uint64) (bool, error) {
 		if accord.history.Size() > 0 {
 			accord.Logger.Info("Accord processes are aligned. Clearing out history")
 			err := accord.history.Clear()
+
 			if err != nil {
 				accord.Logger.WithError(err).Error("Could not clear our history")
 				accord.Shutdown(err)

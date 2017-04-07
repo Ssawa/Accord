@@ -1,6 +1,7 @@
 package components
 
 import (
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -76,6 +77,15 @@ func TestPollListener(t *testing.T) {
 	assert.Equal(t, "deleted", string(data[0]))
 
 	assert.Equal(t, uint64(0), acrd.Status().ToBeSyncedSize)
+
+	// Test empty
+	_, err = client.Send("send", 0)
+	assert.Nil(t, err)
+	data, err = client.RecvMessageBytes(0)
+	assert.Nil(t, err)
+	assert.Len(t, data, 2)
+	assert.Equal(t, "empty", string(data[0]))
+	assert.Equal(t, acrd.Status().State, binary.LittleEndian.Uint64(data[1]))
 
 	// Test error handling
 	acrd.Stop()
