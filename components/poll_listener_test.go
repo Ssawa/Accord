@@ -16,7 +16,8 @@ func TestPollListener(t *testing.T) {
 	defer accord.AccordCleanup()
 
 	listener := PollListener{
-		BindAddress:   "inproc://pollListenerTest",
+		Address:       "inproc://pollListenerTest",
+		Bind:          true,
 		ListenTimeout: time.Millisecond,
 		SendTimeout:   time.Millisecond,
 	}

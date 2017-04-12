@@ -43,17 +43,21 @@ func main() {
 	logger := logrus.New()
 	logger.Level = logrus.DebugLevel
 
+	bind := os.Args[6] == "b"
+
 	comps := []accord.Component{
 		&components.WebReceiver{
 			BindAddress: os.Args[1],
 		},
 
 		&components.PollListener{
-			BindAddress: os.Args[2],
+			Address: os.Args[2],
+			Bind:    bind,
 		},
 
 		&components.PollRequestor{
-			ConnectAddress: os.Args[3],
+			Address: os.Args[3],
+			Bind:    bind,
 		},
 	}
 

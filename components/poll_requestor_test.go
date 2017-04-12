@@ -17,10 +17,11 @@ func TestPollRequestor(t *testing.T) {
 	defer accord.AccordCleanup()
 
 	requestor := PollRequestor{
-		ConnectAddress: "inproc://pollRequestorTest",
-		ListenTimeout:  time.Millisecond,
-		SendTimeout:    time.Millisecond,
-		WaitOnEmpty:    time.Millisecond,
+		Address:       "inproc://pollRequestorTest",
+		Bind:          false,
+		ListenTimeout: time.Millisecond,
+		SendTimeout:   time.Millisecond,
+		WaitOnEmpty:   time.Millisecond,
 	}
 
 	manager := accord.DummyManager{ShouldProcessRet: true}

@@ -18,8 +18,11 @@ import (
 type PollListener struct {
 	accord.ComponentRunner
 
-	// BindAddress is the ZeroMQ address to bind to. This must follow the ZMQ addressing schema (transport://endpoint)
-	BindAddress string
+	// Address is the ZeroMQ address to use. This must follow the ZMQ addressing schema (transport://endpoint)
+	Address string
+
+	// Bind determines whether we should bind the the suplied address or connect
+	Bind bool
 	// ListenTimeout and SendTimeout is how long we should wait when doing ZMQ receives and sends before giving up. This should be balanced
 	// with how much leanancy you want to give your network with how responsive you want your Accord process to be
 	// (This effects how long it takes to process shutting down the program)
@@ -58,10 +61,18 @@ func (listener *PollListener) Start(accord *accord.Accord) (err error) {
 		return err
 	}
 
-	err = listener.sock.Bind(listener.BindAddress)
-	if err != nil {
-		listener.log.WithError(err).WithField("BindAddress", listener.BindAddress).Error("Could not bind ZeroMQ socket")
-		return err
+	if listener.Bind {
+		err = listener.sock.Bind(listener.Address)
+		if err != nil {
+			listener.log.WithError(err).WithField("Address", listener.Address).Error("Could not bind ZeroMQ socket")
+			return err
+		}
+	} else {
+		err = listener.sock.Connect(listener.Address)
+		if err != nil {
+			listener.log.WithError(err).WithField("Address", listener.Address).Error("Could not connect ZeroMQ socket")
+			return err
+		}
 	}
 
 	// Make sure our ZeroMQ socket doesn't block us for too long
