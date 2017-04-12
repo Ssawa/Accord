@@ -40,7 +40,7 @@ func (manager *DummyManager) Process(msg Message, fromRemote bool) error {
 	return nil
 }
 
-func (manager *DummyManager) ShouldProcess(msg Message, history *HistoryStack) bool {
+func (manager *DummyManager) ShouldProcess(msg Message, history *HistoryIterator) bool {
 	manager.ShouldProcessCount++
 	return manager.ShouldProcessRet
 }

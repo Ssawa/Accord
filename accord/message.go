@@ -109,3 +109,13 @@ func (msg *Message) Serialize() ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
+
+// NewerThan is a helper function to quickly determine if the current message is newer than the referenced message
+func (msg Message) NewerThan(other Message) bool {
+	return msg.Timestamp.After(other.Timestamp)
+}
+
+// OlderThan is the inverse of NewerThan. It tells us whether a message came in before the referenced message
+func (msg Message) OlderThan(other Message) bool {
+	return msg.Timestamp.Before(other.Timestamp)
+}

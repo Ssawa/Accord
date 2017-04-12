@@ -40,7 +40,7 @@ type Manager interface {
 
 	// ShouldProcess gives the Manager a chance to filter which Messages get passed to Process so as to resolve
 	// synchronization conflicts
-	ShouldProcess(msg Message, history *HistoryStack) bool
+	ShouldProcess(msg Message, history *HistoryIterator) bool
 }
 
 // Accord is the main struct responsible for maintaining state and coordinating
@@ -283,15 +283,19 @@ func (accord *Accord) HandleRemoteMessage(msg *Message) error {
 		// know we need to process it
 		accord.Logger.Debug("Our state and the remote state are synchronized, will perform the operation")
 		shouldProcess = true
-	} else if accord.manager.ShouldProcess(*msg, accord.history) {
-		// If our state has diverged from the remote than we need to ask our Manager if it thinks it's safe
-		// to process this message or it it will cause a collision with our update history
-		accord.Logger.Debug("Our manager told us this is a process that should be processed")
-		shouldProcess = true
 	} else {
-		// If both the previous conditions failed than we just want to ignore this particular message
-		accord.Logger.Debug("Choosing not to process this message")
-		shouldProcess = false
+		it := createHistoryIterator(accord.history)
+		if accord.manager.ShouldProcess(*msg, it) {
+			// If our state has diverged from the remote than we need to ask our Manager if it thinks it's safe
+			// to process this message or it it will cause a collision with our update history
+			accord.Logger.Debug("Our manager told us this is a process that should be processed")
+			shouldProcess = true
+		} else {
+			// If both the previous conditions failed than we just want to ignore this particular message
+			accord.Logger.Debug("Choosing not to process this message")
+			shouldProcess = false
+		}
+		it.close()
 	}
 
 	// If we determined that we want to process this message than send it over to the Manager to do some application

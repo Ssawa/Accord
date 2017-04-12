@@ -35,7 +35,14 @@ func (manager MyManager) Process(msg accord.Message, fromRemote bool) error {
 	return ioutil.WriteFile(filename, []byte(data.Value), 0777)
 }
 
-func (manager MyManager) ShouldProcess(msg accord.Message, history *accord.HistoryStack) bool {
+func (manager MyManager) ShouldProcess(theirs accord.Message, history *accord.HistoryIterator) bool {
+	theirData := ParseData(theirs.Payload)
+	for ours, _ := history.Next(); ours != nil; {
+		ourData := ParseData(ours.Payload)
+		if theirData.File == ourData.File && ours.NewerThan(theirs) {
+			return false
+		}
+	}
 	return true
 }
 

@@ -107,3 +107,19 @@ func TestMessageGenIDMultipleTimes(t *testing.T) {
 	assert.Equal(t, msg1.ID, msg2.ID)
 
 }
+
+func TestMessageNewerThan(t *testing.T) {
+	msg1 := Message{Timestamp: time.Date(1985, time.October, 10, 26, 0, 0, 0, time.UTC), Payload: []byte{123}, StateAt: 839}
+	msg2 := Message{Timestamp: time.Date(1955, time.October, 10, 26, 0, 0, 0, time.UTC), Payload: []byte{123}, StateAt: 839}
+
+	assert.True(t, msg1.NewerThan(msg2))
+	assert.False(t, msg2.NewerThan(msg1))
+}
+
+func TestMessageOlderThan(t *testing.T) {
+	msg1 := Message{Timestamp: time.Date(1985, time.October, 10, 26, 0, 0, 0, time.UTC), Payload: []byte{123}, StateAt: 839}
+	msg2 := Message{Timestamp: time.Date(1955, time.October, 10, 26, 0, 0, 0, time.UTC), Payload: []byte{123}, StateAt: 839}
+
+	assert.False(t, msg1.OlderThan(msg2))
+	assert.True(t, msg2.OlderThan(msg1))
+}
