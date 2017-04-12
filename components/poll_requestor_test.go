@@ -37,7 +37,7 @@ func TestPollRequestor(t *testing.T) {
 	defer requestor.Stop(0)
 
 	// Create our custom server
-	server, err := zmq.NewSocket(zmq.REP)
+	server, err := zmq.NewSocket(zmq.PAIR)
 	assert.Nil(t, err)
 
 	err = server.Bind("inproc://pollRequestorTest")

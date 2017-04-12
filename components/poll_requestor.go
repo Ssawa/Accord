@@ -37,6 +37,9 @@ type PollRequestor struct {
 	// state helps us represent a very simple and very loose state machine. Essentially, our tick function will only execute whatever this function
 	// is. To change your state, simply change the function
 	state func(*accord.Accord)
+
+	// If we haven't received anything in awhile we're probably in a hung state and we should reset
+	reset int
 }
 
 // Start initializes our PollRequestor and creates, configures, and connects our sockets
@@ -48,7 +51,7 @@ func (requestor *PollRequestor) Start(accord *accord.Accord) (err error) {
 
 	// Default our timeout to something reasonable
 	if requestor.ListenTimeout == 0 {
-		requestor.ListenTimeout = 2 * time.Millisecond
+		requestor.ListenTimeout = 2 * time.Second
 	}
 	if requestor.SendTimeout == 0 {
 		requestor.SendTimeout = 2 * time.Second
@@ -58,7 +61,7 @@ func (requestor *PollRequestor) Start(accord *accord.Accord) (err error) {
 	}
 
 	requestor.log.Info("Starting PollRequestor")
-	requestor.sock, err = zmq.NewSocket(zmq.REQ)
+	requestor.sock, err = zmq.NewSocket(zmq.PAIR)
 	if err != nil {
 		requestor.log.WithError(err).Error("Could not create ZeroMQ socket")
 		return err
@@ -109,6 +112,8 @@ func (requestor *PollRequestor) tick(acrd *accord.Accord) {
 // requestMsgState is our initial state where we send a request off to our remote to get a new message
 // from their queue
 func (requestor *PollRequestor) requestMsgState(acrd *accord.Accord) {
+	requestor.reset = 0
+
 	_, err := requestor.sock.Send("send", 0)
 	if err != nil {
 		requestor.ExpectedOrShutdown(err, ZMQTimeout)
@@ -120,9 +125,17 @@ func (requestor *PollRequestor) requestMsgState(acrd *accord.Accord) {
 
 // receiveState waits to receive a response from our remote
 func (requestor *PollRequestor) receiveState(acrd *accord.Accord) {
+	if requestor.reset >= 10 {
+		requestor.log.Debug("Timed out listening too many times. Re-entering requestMsgState")
+		requestor.state = requestor.requestMsgState
+		return
+	}
+
 	data, err := requestor.sock.RecvMessageBytes(0)
 	if err != nil {
 		requestor.ExpectedOrShutdown(err, ZMQTimeout)
+		requestor.reset++
+		requestor.log.Debug("Timed out listening. Incrementing count: ", requestor.reset)
 		return
 	}
 

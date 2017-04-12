@@ -43,7 +43,7 @@ func TestPollListener(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Setup client to test listener with
-	client, err := zmq.NewSocket(zmq.REQ)
+	client, err := zmq.NewSocket(zmq.PAIR)
 	assert.Nil(t, err)
 
 	err = client.Connect("inproc://pollListenerTest")
