@@ -63,6 +63,19 @@ func (requestor *PollRequestor) Start(accord *accord.Accord) (err error) {
 	}
 
 	requestor.log.Info("Starting PollRequestor")
+	err = requestor.createSocket()
+	if err != nil {
+		return err
+	}
+
+	// I attempted to set the socket to REQ Relaxed and REQ Coralated but it just didn't work.
+	// It's worth investigating however. For now we'll just
+
+	requestor.ComponentRunner.Init(accord, requestor.tick, requestor.cleanup, requestor.log)
+	return nil
+}
+
+func (requestor *PollRequestor) createSocket() (err error) {
 	requestor.sock, err = zmq.NewSocket(zmq.PAIR)
 	if err != nil {
 		requestor.log.WithError(err).Error("Could not create ZeroMQ socket")
@@ -95,10 +108,6 @@ func (requestor *PollRequestor) Start(accord *accord.Accord) (err error) {
 		return err
 	}
 
-	// I attempted to set the socket to REQ Relaxed and REQ Coralated but it just didn't work.
-	// It's worth investigating however. For now we'll just
-
-	requestor.ComponentRunner.Init(accord, requestor.tick, requestor.cleanup, requestor.log)
 	return nil
 }
 
@@ -123,10 +132,12 @@ func (requestor *PollRequestor) tick(acrd *accord.Accord) {
 // from their queue
 func (requestor *PollRequestor) requestMsgState(acrd *accord.Accord) {
 	requestor.reset = 0
-
 	_, err := requestor.sock.Send("send", 0)
 	if err != nil {
 		requestor.ExpectedOrShutdown(err, ZMQTimeout)
+		requestor.log.Debug("Timed out sending. Destroying socket and trying again")
+		requestor.sock.Close()
+		requestor.createSocket()
 		return
 	}
 	requestor.log.Debug("Sent request, entering receiveState")
