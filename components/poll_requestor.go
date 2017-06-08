@@ -135,8 +135,16 @@ func (requestor *PollRequestor) requestMsgState(acrd *accord.Accord) {
 	if err != nil {
 		requestor.ExpectedOrShutdown(err, ZMQTimeout)
 		requestor.log.Debug("Timed out sending. Destroying socket and trying again")
-		requestor.sock.Close()
-		requestor.createSocket()
+		err = requestor.sock.Close()
+		if err != nil {
+			requestor.log.WithError(err).Error("Error closing ZeroMQ socket")
+			requestor.Shutdown(err)
+		}
+		err = requestor.createSocket()
+		if err != nil {
+			requestor.log.WithError(err).Error("Error recreating the the ZeroMQ socket")
+			requestor.Shutdown(err)
+		}
 		return
 	}
 	requestor.log.Debug("Sent request, entering receiveState")
