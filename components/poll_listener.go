@@ -54,7 +54,7 @@ func (listener *PollListener) Start(accord *accord.Accord) (err error) {
 	// Can we have a brief talk about golang's error handling? I understand some of the grievances
 	// about exceptions but trying to do any kind of error handling just becomes an unreadable mess
 
-	listener.log.Info("Starting PollListener")
+	listener.log.WithField("address", listener.Address).Info("Starting PollListener")
 	listener.sock, err = zmq.NewSocket(zmq.PAIR)
 	if err != nil {
 		listener.log.WithError(err).Error("Could not create ZeroMQ socket")

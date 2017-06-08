@@ -62,7 +62,7 @@ func (requestor *PollRequestor) Start(accord *accord.Accord) (err error) {
 		requestor.WaitOnEmpty = time.Second
 	}
 
-	requestor.log.Info("Starting PollRequestor")
+	requestor.log.WithField("address", requestor.Address).Info("Starting PollRequestor")
 	err = requestor.createSocket()
 	if err != nil {
 		return err
@@ -70,7 +70,6 @@ func (requestor *PollRequestor) Start(accord *accord.Accord) (err error) {
 
 	// I attempted to set the socket to REQ Relaxed and REQ Coralated but it just didn't work.
 	// It's worth investigating however. For now we'll just
-
 	requestor.ComponentRunner.Init(accord, requestor.tick, requestor.cleanup, requestor.log)
 	return nil
 }
