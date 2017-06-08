@@ -110,9 +110,22 @@ func (requestor *PollRequestor) createSocket() (err error) {
 	return nil
 }
 
+func (requestor *PollRequestor) closeSocket() error {
+	err := requestor.sock.Disconnect(requestor.Address)
+	if err != nil {
+		return err
+	}
+	err = requestor.sock.Close()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // cleanup makes sure all of our connections are cleaned up and not left in a hanging state
 func (requestor *PollRequestor) cleanup(*accord.Accord) {
-	err := requestor.sock.Close()
+	err := requestor.closeSocket()
 	if err != nil {
 		requestor.log.WithError(err).Warn("Error closing ZeroMQ socket")
 	}
@@ -135,7 +148,8 @@ func (requestor *PollRequestor) requestMsgState(acrd *accord.Accord) {
 	if err != nil {
 		requestor.ExpectedOrShutdown(err, ZMQTimeout)
 		requestor.log.Debug("Timed out sending. Destroying socket and trying again")
-		err = requestor.sock.Close()
+
+		err = requestor.closeSocket()
 		if err != nil {
 			requestor.log.WithError(err).Error("Error closing ZeroMQ socket")
 			requestor.Shutdown(err)
