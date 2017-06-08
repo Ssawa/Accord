@@ -31,6 +31,7 @@ type PollRequestor struct {
 	// WaitOnEmpty specifies how long we should wait before requesting again if the remote tells us its queue is empty
 	WaitOnEmpty time.Duration
 
+	ctx  *zmq.Context
 	sock *zmq.Socket
 	log  *logrus.Entry
 
@@ -75,7 +76,13 @@ func (requestor *PollRequestor) Start(accord *accord.Accord) (err error) {
 }
 
 func (requestor *PollRequestor) createSocket() (err error) {
-	requestor.sock, err = zmq.NewSocket(zmq.PAIR)
+	requestor.ctx, err = zmq.NewContext()
+	if err != nil {
+		requestor.log.WithError(err).Error("Could not create ZeroMQ context")
+		return err
+	}
+
+	requestor.sock, err = requestor.ctx.NewSocket(zmq.PAIR)
 	if err != nil {
 		requestor.log.WithError(err).Error("Could not create ZeroMQ socket")
 		return err
@@ -106,16 +113,30 @@ func (requestor *PollRequestor) createSocket() (err error) {
 		requestor.log.WithError(err).Error("Could not set ZeroMQ receive timeout")
 		return err
 	}
+	err = requestor.sock.SetLinger(0)
+	if err != nil {
+		requestor.log.WithError(err).Error("Could not set ZeroMQ linger timeout")
+		return err
+	}
 
 	return nil
 }
 
 func (requestor *PollRequestor) closeSocket() error {
+	requestor.log.Info("Disconnecting")
 	err := requestor.sock.Disconnect(requestor.Address)
 	if err != nil {
 		return err
 	}
+
+	requestor.log.Info("Closing")
 	err = requestor.sock.Close()
+	if err != nil {
+		return err
+	}
+
+	requestor.log.Info("Terminating")
+	err = requestor.ctx.Term()
 	if err != nil {
 		return err
 	}
