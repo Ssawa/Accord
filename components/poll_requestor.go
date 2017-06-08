@@ -123,19 +123,19 @@ func (requestor *PollRequestor) createSocket() (err error) {
 }
 
 func (requestor *PollRequestor) closeSocket() error {
-	requestor.log.Info("Disconnecting")
+	requestor.log.Debug("Disconnecting")
 	err := requestor.sock.Disconnect(requestor.Address)
 	if err != nil {
 		return err
 	}
 
-	requestor.log.Info("Closing")
+	requestor.log.Debug("Closing")
 	err = requestor.sock.Close()
 	if err != nil {
 		return err
 	}
 
-	requestor.log.Info("Terminating")
+	requestor.log.Debug("Terminating")
 	err = requestor.ctx.Term()
 	if err != nil {
 		return err
