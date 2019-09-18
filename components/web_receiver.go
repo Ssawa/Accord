@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/Ssawa/accord/accord"
+	"github.com/cj-dimaggio/accord/accord"
 	"github.com/sirupsen/logrus"
 )
 

@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Ssawa/accord/accord"
+	"github.com/cj-dimaggio/accord/accord"
 	"github.com/stretchr/testify/assert"
 )
 

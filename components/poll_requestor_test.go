@@ -7,7 +7,7 @@ import (
 
 	zmq "github.com/pebbe/zmq4"
 
-	"github.com/Ssawa/accord/accord"
+	"github.com/cj-dimaggio/accord/accord"
 	"github.com/stretchr/testify/assert"
 )
 

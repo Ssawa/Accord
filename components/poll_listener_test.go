@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ssawa/accord/accord"
+	"github.com/cj-dimaggio/accord/accord"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/assert"
 )

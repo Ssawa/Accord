@@ -1,4 +1,4 @@
-package: github.com/Ssawa/accord
+package: github.com/cj-dimaggio/accord
 import:
 - package: github.com/beeker1121/goque
   version: ^2.0.1
